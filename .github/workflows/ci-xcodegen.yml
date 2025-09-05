@@ -2,9 +2,9 @@ name: ci-xcodegen-unsigned-ipa
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -34,18 +34,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SCHEME=$(xcodebuild -list -json | /usr/bin/python3 - <<'PY'
+          SCHEME=$(xcodebuild -list -json | /usr/bin/python3 - << 'PY'
 import sys, json
-d = json.load(sys.stdin)
-proj = d.get("project") or {}
-schemes = proj.get("schemes") or []
-print(schemes[0] if schemes else "")
+d=json.load(sys.stdin); p=d.get("project") or {}; s=p.get("schemes") or []
+print(s[0] if s else "")
 PY
 )
-          if [ -z "$SCHEME" ]; then
-            echo "❌ Không tìm thấy scheme. Hãy share scheme trong Xcode hoặc khai báo tên scheme cố định."
-            exit 1
-          fi
+          [ -z "$SCHEME" ] && echo "No scheme found" && exit 1
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
           echo "✅ Scheme: $SCHEME"
 
@@ -53,33 +48,17 @@ PY
         shell: bash
         run: |
           set -euo pipefail
-          echo "== Debug: list project/workspace (root) =="
-          ls -lah
-          echo "== Find workspace/project =="
+          DERIVED="build"
+          SCHEME="${{ steps.scheme.outputs.scheme }}"
+
+          # Ưu tiên workspace nếu có, không thì dùng project
           shopt -s nullglob
           workspaces=( ./*.xcworkspace )
           projects=( ./*.xcodeproj )
 
-          DERIVED="build"
-
           if (( ${#workspaces[@]} > 0 )); then
-            WS="${workspaces[0]}"
-            echo "Found workspace: $WS"
-            xcodebuild \
-              -workspace "$WS" \
-              -scheme "${{ steps.scheme.outputs.scheme }}" \
-              -configuration Release \
-              -sdk iphoneos \
-              -destination 'generic/platform=iOS' \
-              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
-              -derivedDataPath "$DERIVED" \
-              clean build
-          elif (( ${#projects[@]} > 0 )); then
-            PROJ="${projects[0]}"
-            echo "Found project: $PROJ"
-            xcodebuild \
-              -project "$PROJ" \
-              -scheme "${{ steps.scheme.outputs.scheme }}" \
+            xcodebuild -workspace "${workspaces[0]}" \
+              -scheme "$SCHEME" \
               -configuration Release \
               -sdk iphoneos \
               -destination 'generic/platform=iOS' \
@@ -87,27 +66,58 @@ PY
               -derivedDataPath "$DERIVED" \
               clean build
           else
-            echo "❌ Không tìm thấy .xcworkspace hoặc .xcodeproj sau khi xcodegen."
-            exit 1
+            xcodebuild -project "${projects[0]}" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -sdk iphoneos \
+              -destination 'generic/platform=iOS' \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
+              -derivedDataPath "$DERIVED" \
+              clean build
           fi
 
-      - name: Package unsigned IPA
+      - name: Package unsigned IPA (proper)
         shell: bash
         run: |
           set -euo pipefail
-          PROD_DIR="build/Build/Products/Release-iphoneos"
-          APP_PATH=$(find "$PROD_DIR" -maxdepth 1 -type d -name "*.app" -print -quit)
-          if [ -z "${APP_PATH:-}" ]; then
-            echo "❌ Không thấy .app ở $PROD_DIR"
-            ls -lah "$PROD_DIR" || true
-            exit 1
+          SCHEME="${{ steps.scheme.outputs.scheme }}"
+          CONFIG="Release"
+
+          # Lấy đường dẫn .app từ build settings
+          APP_PATH=$(xcodebuild -showBuildSettings \
+            -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos 2>/dev/null \
+            | awk -F' = ' '
+                /TARGET_BUILD_DIR/ { t=$2 }
+                /WRAPPER_NAME/     { w=$2 }
+                END { if (t && w) print t "/" w }'
+          )
+
+          if [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]]; then
+            echo "❌ Không tìm thấy .app"; exit 1
           fi
 
           APP_NAME=$(basename "$APP_PATH" .app)
-          mkdir -p payload/Payload
-          cp -R "$APP_PATH" "payload/Payload/$APP_NAME.app"
-          (cd payload && zip -qry "../${APP_NAME}-unsigned.ipa" Payload)
-          ls -lah "${APP_NAME}-unsigned.ipa"
+          echo "✅ APP_PATH = $APP_PATH"
+
+          rm -rf Payload *.ipa
+          mkdir -p Payload
+          cp -R "$APP_PATH" "Payload/$APP_NAME.app"
+
+          # Kiểm tra Info.plist
+          PLIST="Payload/$APP_NAME.app/Info.plist"
+          echo "== Info.plist check =="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$PLIST"
+
+          # Đóng gói IPA bằng ditto (chuẩn Apple)
+          IPA_NAME="${APP_NAME}-unsigned.ipa"
+          ditto -ck --sequesterRsrc --keepParent Payload "$IPA_NAME"
+
+          echo "== Liệt kê nội dung IPA =="
+          unzip -l "$IPA_NAME" | head -n 40
+          ls -lah "$IPA_NAME"
 
       - name: Upload artifact (unsigned IPA)
         uses: actions/upload-artifact@v4
