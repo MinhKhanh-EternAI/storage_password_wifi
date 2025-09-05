@@ -2,9 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <!-- Cho phép đọc SSID hiện tại -->
   <key>com.apple.developer.networking.wifi-info</key>
   <true/>
-  <!-- Tuỳ chọn: nếu bạn dùng NEHotspotConfiguration để join mạng -->
+  <!-- Cho phép cấu hình/kết nối Wi-Fi bằng NEHotspotConfiguration -->
   <key>com.apple.developer.networking.HotspotConfiguration</key>
   <true/>
 </dict>

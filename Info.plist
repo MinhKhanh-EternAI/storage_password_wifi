@@ -10,5 +10,9 @@
   <key>CFBundleVersion</key><string>1</string>
   <key>UILaunchScreen</key><dict/>
   <key>LSRequiresIPhoneOS</key><true/>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Ứng dụng cần quyền vị trí để đọc SSID hiện tại và kết nối Wi-Fi.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Ứng dụng dùng camera để quét QR Wi-Fi.</string>
 </dict>
 </plist>
