@@ -7,11 +7,11 @@ let project = Project(
     targets: [
         Target(
             name: "WiFiOffline",
-            platform: .iOS,
+            destinations: .iOS, // chỉ iPhone, nếu muốn universal thì .iOS([.iPhone, .iPad])
             product: .app,
             bundleId: "com.example.wifioffline",
-            deploymentTarget: .iOS(targetVersion: "16.0", devices: [.iphone]),
-            infoPlist: .file(path: "Info.plist"),
+            deploymentTargets: .iOS("16.0"),
+            infoPlist: "Info.plist",
             sources: ["Sources/**"],
             resources: ["Resources/**"],
             entitlements: "WiFiOffline.entitlements",
