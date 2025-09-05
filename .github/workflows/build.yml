@@ -15,14 +15,11 @@ jobs:
       - name: Show repo tree
         run: |
           pwd
-          echo "=== Root directory ==="
           ls -la
-          echo "=== Sources directory ==="
-          ls -la Sources/ || echo "Sources directory not found"
-          echo "=== Entitlements directory ==="
-          ls -la Entitlements/ || echo "Entitlements directory not found"
-          echo "=== project.yml content ==="
-          cat project.yml || echo "project.yml not found"
+          echo "---- Sources ----"
+          ls -la Sources || true
+          echo "---- project.yml ----"
+          cat project.yml
 
       - name: Install tools
         run: |
@@ -34,71 +31,34 @@ jobs:
       - name: Generate Xcode project
         run: |
           xcodegen generate
-          echo "Generated project files:"
-          ls -la *.xcodeproj || echo "No .xcodeproj found"
-          ls -la *.xcworkspace || echo "No .xcworkspace found"
-          echo "Project contents:"
-          if [ -d "WiFiOffline.xcodeproj" ]; then
-            echo "Xcode project structure:"
-            find WiFiOffline.xcodeproj -name "*.pbxproj" | head -1 | xargs head -20
-          fi
+          ls -la *.xcodeproj || true
 
       - name: Build unsigned .app (iphoneos)
         run: |
           set -euo pipefail
-          
-          # Tìm project file (.xcodeproj hoặc .xcworkspace)
-          if [ -f "WiFiOffline.xcworkspace" ]; then
-            PROJECT_FILE="WiFiOffline.xcworkspace"
-            PROJECT_FLAG="-workspace"
-          elif [ -f "WiFiOffline.xcodeproj" ]; then
-            PROJECT_FILE="WiFiOffline.xcodeproj"
-            PROJECT_FLAG="-project"
-          else
-            echo "Error: No .xcodeproj or .xcworkspace found"
-            exit 1
-          fi
-          
-          echo "Using project file: $PROJECT_FILE"
-          
-          xcodebuild $PROJECT_FLAG "$PROJECT_FILE" \
-            -scheme "WiFiOffline" \
+          xcodebuild -scheme "WiFiOffline" \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_IDENTITY="" \
-            PROVISIONING_PROFILE="" \
-            DEVELOPMENT_TEAM="" \
             -derivedDataPath build \
-            clean build
+            build
 
       - name: Package IPA
         run: |
           set -euo pipefail
-          echo "Looking for built app..."
-          echo "Build directory structure:"
-          find build -type d -name "*Products*" | head -5
-          find build -name "*.app" -type d
-          
           APP_PATH=$(find build -name "*.app" -type d -print -quit)
           if [ -z "$APP_PATH" ]; then
             echo "Error: No .app file found in build directory"
-            echo "Full build directory contents:"
-            find build -type f | head -20
-            find build -type d | head -20
-            echo "Looking for any WiFiOffline related files:"
-            find build -name "*WiFiOffline*" -o -name "*wifioffline*" || echo "No WiFiOffline files found"
             exit 1
           fi
           echo "Found app at: $APP_PATH"
-          echo "App size: $(du -sh "$APP_PATH")"
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           /usr/bin/zip -qry WiFiOffline-unsigned.ipa Payload
           rm -rf Payload
-          echo "IPA created successfully:"
           ls -la WiFiOffline-unsigned.ipa
 
       - name: Upload unsigned IPA

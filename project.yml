@@ -1,66 +1,34 @@
 name: WiFiOffline
 options:
-  bundleIdPrefix: com.example
   createIntermediateGroups: true
-  
 configs:
   Debug: debug
   Release: release
-
-schemes:
-  WiFiOffline:
-    build:
-      targets:
-        WiFiOffline: all
-    run:
-      config: Debug
-    archive:
-      config: Release
 
 targets:
   WiFiOffline:
     type: application
     platform: iOS
     deploymentTarget: "14.0"
-    
+
+    # Chỉ rõ từng file để tránh lỗi 'path'
     sources:
-      - Sources
-      
-    entitlements:
-      path: Entitlements/WiFiOffline.entitlements
-      
+      - path: ./Sources/WiFiOfflineApp.swift
+      - path: ./Sources/ContentView.swift
+
     settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.wifioffline
-        PRODUCT_NAME: WiFiOffline
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGNING_ALLOWED: NO
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGNING_IDENTITY: ""
-        PROVISIONING_PROFILE: ""
-        DEVELOPMENT_TEAM: ""
-        SWIFT_VERSION: "5.0"
-        TARGETED_DEVICE_FAMILY: "1"
-        IPHONEOS_DEPLOYMENT_TARGET: "14.0"
-        ENABLE_BITCODE: NO
-        
+      CODE_SIGN_STYLE: Manual
+      CODE_SIGNING_ALLOWED: NO
+      CODE_SIGNING_REQUIRED: NO
+      CODE_SIGNING_IDENTITY: ""
+
     info:
       properties:
         CFBundleName: WiFiOffline
-        CFBundleDisplayName: WiFi Offline
-        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleIdentifier: com.example.wifioffline
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
-        CFBundlePackageType: APPL
-        CFBundleExecutable: $(EXECUTABLE_NAME)
-        CFBundleInfoDictionaryVersion: "6.0"
-        LSRequiresIPhoneOS: true
-        
-        UIApplicationSupportsIndirectInputEvents: true
-        UILaunchScreen: {}
-        
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-          
         UIRequiredDeviceCapabilities:
           - arm64
