@@ -33,19 +33,38 @@ jobs:
           xcodegen generate
           echo "Generated project files:"
           ls -la *.xcodeproj || echo "No .xcodeproj found"
+          ls -la *.xcworkspace || echo "No .xcworkspace found"
 
       - name: Build unsigned .app (iphoneos)
         run: |
           set -euo pipefail
-          xcodebuild -scheme "WiFiOffline" \
+          
+          # Tìm project file (.xcodeproj hoặc .xcworkspace)
+          if [ -f "WiFiOffline.xcworkspace" ]; then
+            PROJECT_FILE="WiFiOffline.xcworkspace"
+            PROJECT_FLAG="-workspace"
+          elif [ -f "WiFiOffline.xcodeproj" ]; then
+            PROJECT_FILE="WiFiOffline.xcodeproj"
+            PROJECT_FLAG="-project"
+          else
+            echo "Error: No .xcodeproj or .xcworkspace found"
+            exit 1
+          fi
+          
+          echo "Using project file: $PROJECT_FILE"
+          
+          xcodebuild $PROJECT_FLAG "$PROJECT_FILE" \
+            -scheme "WiFiOffline" \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_IDENTITY="" \
+            PROVISIONING_PROFILE="" \
+            DEVELOPMENT_TEAM="" \
             -derivedDataPath build \
-            build
+            clean build
 
       - name: Package IPA
         run: |
@@ -53,6 +72,10 @@ jobs:
           APP_PATH=$(find build -name "*.app" -type d -print -quit)
           if [ -z "$APP_PATH" ]; then
             echo "Error: No .app file found in build directory"
+            echo "Contents of build directory:"
+            find build -type f -name "*.app" || echo "No .app files found"
+            find build -name "*WiFiOffline*" || echo "No WiFiOffline files found"
+            ls -la build/
             exit 1
           fi
           echo "Found app at: $APP_PATH"

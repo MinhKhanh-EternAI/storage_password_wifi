@@ -11,24 +11,76 @@ targets:
     platform: iOS
     deploymentTarget: "14.0"
 
-    # Chỉ rõ TỪNG FILE cho chắc (tránh lỗi 'path')
+    # Sources configuration
     sources:
-      - path: ./Sources/WiFiOfflineApp.swift
-      - path: ./Sources/ContentView.swift
+      - path: Sources
+        name: Sources
+        type: group
+
+    # Resources (nếu có)
+    resources:
+      - path: Resources
+        optional: true
+
+    # Entitlements
+    entitlements:
+      path: Entitlements/WiFiOffline.entitlements
 
     settings:
-      CODE_SIGN_STYLE: Manual
-      CODE_SIGNING_ALLOWED: NO
-      CODE_SIGNING_REQUIRED: NO
-      CODE_SIGNING_IDENTITY: ""
+      base:
+        # Code signing settings
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_IDENTITY: ""
+        PROVISIONING_PROFILE: ""
+        DEVELOPMENT_TEAM: ""
+        
+        # Product settings
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.wifioffline
+        PRODUCT_NAME: WiFiOffline
+        
+        # Build settings
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SWIFT_VERSION: "5.0"
+        
+        # Deployment
+        IPHONEOS_DEPLOYMENT_TARGET: "14.0"
+        
+        # Other settings
+        ENABLE_BITCODE: NO
+        SKIP_INSTALL: NO
 
     info:
+      path: Info.plist
       properties:
         CFBundleName: WiFiOffline
+        CFBundleDisplayName: WiFi Offline
         CFBundleIdentifier: com.example.wifioffline
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
+        CFBundlePackageType: APPL
+        CFBundleExecutable: WiFiOffline
+        
+        # UI Configuration
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          
         UIRequiredDeviceCapabilities:
           - arm64
+          
+        # App Transport Security
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+          
+        # SwiftUI
+        UISceneDelegate: false
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
