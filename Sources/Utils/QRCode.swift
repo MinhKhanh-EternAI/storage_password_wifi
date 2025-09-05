@@ -16,14 +16,17 @@ struct QRCodeView: View {
     }
 }
 
+/// Hàm dựng ảnh QR liên quan UI ⇒ chạy trên MainActor để an toàn với Swift Concurrency.
+@MainActor
 extension UIImage {
-    /// Tạo ảnh QR từ chuỗi với CoreImage (render vector), sau đó dùng ImageRenderer để đảm bảo kích thước/scale đẹp.
+    /// Tạo ảnh QR bằng CoreImage và render đúng scale với ImageRenderer (iOS 16+).
     static func qr(from text: String, size: CGFloat) -> UIImage {
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(text.utf8)
-        filter.correctionLevel = "M"
+        filter.correctionLevel = "M"  // L/M/Q/H
 
+        // CI tạo ảnh nhỏ; phóng to bằng transform để nét.
         let base = filter.outputImage ?? CIImage(color: .white)
         let scale = max(size / 128.0, 1.0)
         let transformed = base.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
@@ -33,7 +36,7 @@ extension UIImage {
         }
         let ciImage = UIImage(cgImage: cg)
 
-        // iOS 16+: render bằng ImageRenderer để khử aliasing & set đúng scale
+        // Render qua SwiftUI để đảm bảo scale màn hình.
         let view = Image(uiImage: ciImage)
             .interpolation(.none)
             .resizable()

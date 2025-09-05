@@ -4,11 +4,13 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject private var store: WiFiStore
     @EnvironmentObject private var theme: AppTheme
+
     @State private var showAdd = false
     @State private var editItem: WiFiNetwork?
     @State private var showImporter = false
     @State private var showExporter = false
     @State private var exportTempURL: URL?
+    @State private var exportDoc: FileDocumentURL?   // tách document ra state để compiler type-check nhanh
     @State private var search = ""
 
     var body: some View {
@@ -86,12 +88,15 @@ struct ContentView: View {
                     }
                     .accessibilityLabel("Giao diện")
                 }
+
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        showImporter = true
-                    } label: { Image(systemName: "square.and.arrow.down") }
+                    // Import JSON
+                    Button { showImporter = true } label: {
+                        Image(systemName: "square.and.arrow.down")
+                    }
                     .help("Nhập dữ liệu từ JSON")
 
+                    // Export JSON
                     Button {
                         do {
                             let data = try store.exportData()
@@ -99,17 +104,24 @@ struct ContentView: View {
                                 .appendingPathComponent("wifi-\(Int(Date().timeIntervalSince1970)).json")
                             try data.write(to: tmp, options: .atomic)
                             exportTempURL = tmp
+                            exportDoc = FileDocumentURL(url: tmp)   // dùng state riêng
                             showExporter = true
-                        } catch { print("Export error", error) }
-                    } label: { Image(systemName: "square.and.arrow.up") }
+                        } catch {
+                            print("Export error", error)
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
                     .help("Xuất toàn bộ Wi-Fi ra JSON")
 
+                    // Add
                     Button { showAdd = true } label: {
                         Image(systemName: "plus.circle.fill")
                     }
                     .accessibilityLabel("Thêm Wi-Fi")
                 }
             }
+            // Add
             .sheet(isPresented: $showAdd) {
                 NavigationStack {
                     WiFiFormView(item: .init(ssid: "", password: ""))
@@ -118,6 +130,7 @@ struct ContentView: View {
                         .onSubmit { item in store.add(item); showAdd = false }
                 }
             }
+            // Edit
             .sheet(item: $editItem) { item in
                 NavigationStack {
                     WiFiFormView(item: item)
@@ -135,24 +148,26 @@ struct ContentView: View {
                 if case .success(let urls) = result, let url = urls.first {
                     do {
                         let data = try Data(contentsOf: url)
-                        try store.importData(data, merge: true) // merge
+                        try store.importData(data, merge: true)
                     } catch { print("Import error:", error) }
                 }
             }
-            // Exporter
+            // Exporter (dùng exportDoc để tránh expression quá phức tạp)
             .fileExporter(
                 isPresented: $showExporter,
-                document: exportTempURL.map { FileDocumentURL(url: $0) },
+                document: exportDoc,
                 contentType: .json,
                 defaultFilename: "wifi.json"
             ) { result in
                 if case .success = result { /* ok */ }
                 if let url = exportTempURL { try? FileManager.default.removeItem(at: url) }
                 exportTempURL = nil
+                exportDoc = nil
             }
         }
     }
 
+    // MARK: - Helpers
     private var filtered: [WiFiNetwork] {
         let s = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !s.isEmpty else { return store.items }
@@ -161,7 +176,6 @@ struct ContentView: View {
 }
 
 /// Gói URL tạm thành FileDocument để dùng với .fileExporter
-import UniformTypeIdentifiers
 struct FileDocumentURL: FileDocument {
     static var readableContentTypes: [UTType] = [.json]
     static var writableContentTypes: [UTType] = [.json]
