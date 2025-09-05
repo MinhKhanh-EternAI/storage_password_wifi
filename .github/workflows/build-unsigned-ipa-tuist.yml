@@ -27,43 +27,47 @@ jobs:
           brew install --formula tuist
           tuist version
 
-      # 1) Chuẩn hoá & kiểm tra Info.plist (tránh lỗi do BOM/CRLF khi sửa trên Windows)
       - name: Normalize & validate Info.plist
         shell: bash
         run: |
           set -euo pipefail
           if [[ ! -f Info.plist ]]; then
-            echo "❌ Missing Info.plist at repo root"; exit 1
+            echo "❌ Missing Info.plist"; exit 1
           fi
-
-          # Strip UTF-8 BOM + chuyển CRLF -> LF
           python3 - <<'PY'
 from pathlib import Path
 p = Path('Info.plist')
-raw = p.read_bytes()
-if raw.startswith(b'\xef\xbb\xbf'):
-    raw = raw[3:]
-raw = raw.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
-p.write_bytes(raw)
+b = p.read_bytes()
+if b.startswith(b'\xef\xbb\xbf'): b=b[3:]
+b = b.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+p.write_bytes(b)
 PY
-
-          # Convert & lint
           plutil -convert xml1 Info.plist
           plutil -lint Info.plist
 
-      # 2) Generate project bằng Tuist
       - name: Generate Xcode project (Tuist)
         run: tuist generate --no-open
 
-      - name: Debug list after generate
+      - name: Detect workspace/project (once)
+        id: where
+        shell: bash
         run: |
           set -euo pipefail
-          pwd
-          ls -lah
-          find . -maxdepth 2 -type d -name "*.xcworkspace" -print
-          find . -maxdepth 2 -type d -name "*.xcodeproj" -print
+          shopt -s nullglob
+          workspaces=( ./*.xcworkspace )
+          projects=( ./*.xcodeproj )
+          if (( ${#workspaces[@]} > 0 )); then
+            echo "type=workspace" >> $GITHUB_OUTPUT
+            echo "path=${workspaces[0]}" >> $GITHUB_OUTPUT
+            echo "Found workspace: ${workspaces[0]}"
+          elif (( ${#projects[@]} > 0 )); then
+            echo "type=project" >> $GITHUB_OUTPUT
+            echo "path=${projects[0]}" >> $GITHUB_OUTPUT
+            echo "Found project: ${projects[0]}"
+          else
+            echo "❌ No .xcworkspace or .xcodeproj" ; exit 1
+          fi
 
-      # 3) Build iphoneos (unsigned) — tự phát hiện workspace/project
       - name: Build unsigned .app (iphoneos)
         shell: bash
         run: |
@@ -71,73 +75,81 @@ PY
           DERIVED="build"
           SCHEME="WiFiOffline"
 
-          shopt -s nullglob
-          workspaces=( ./*.xcworkspace )
-          projects=( ./*.xcodeproj )
-
-          if (( ${#workspaces[@]} > 0 )); then
-            echo "Found workspace: ${workspaces[0]}"
-            xcodebuild -workspace "${workspaces[0]}" \
-              -scheme "$SCHEME" \
-              -configuration Release \
-              -sdk iphoneos \
-              -destination 'generic/platform=iOS' \
+          if [[ "${{ steps.where.outputs.type }}" == "workspace" ]]; then
+            xcodebuild -workspace "${{ steps.where.outputs.path }}" \
+              -scheme "$SCHEME" -configuration Release \
+              -sdk iphoneos -destination 'generic/platform=iOS' \
               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
-              -derivedDataPath "$DERIVED" \
-              clean build
-          elif (( ${#projects[@]} > 0 )); then
-            echo "Found project: ${projects[0]}"
-            xcodebuild -project "${projects[0]}" \
-              -scheme "$SCHEME" \
-              -configuration Release \
-              -sdk iphoneos \
-              -destination 'generic/platform=iOS' \
-              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
-              -derivedDataPath "$DERIVED" \
-              clean build
+              -derivedDataPath "$DERIVED" clean build
           else
-            echo "❌ No .xcworkspace or .xcodeproj found"; exit 1
+            xcodebuild -project "${{ steps.where.outputs.path }}" \
+              -scheme "$SCHEME" -configuration Release \
+              -sdk iphoneos -destination 'generic/platform=iOS' \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
+              -derivedDataPath "$DERIVED" clean build
           fi
 
-      # 4) Đóng gói IPA chuẩn bằng ditto + verify Info.plist trong .app
-      - name: Package unsigned IPA (proper)
+      - name: Package unsigned IPA (proper, with fallbacks)
         shell: bash
         run: |
           set -euo pipefail
           SCHEME="WiFiOffline"
           CONFIG="Release"
 
-          # Lấy APP_PATH chính xác từ build settings
-          APP_PATH=$(xcodebuild -showBuildSettings \
-            -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos 2>/dev/null \
-            | awk -F' = ' '
-                /TARGET_BUILD_DIR/ { t=$2 }
-                /WRAPPER_NAME/     { w=$2 }
-                END { if (t && w) print t "/" w }' )
+          # 1) Lấy APP_PATH từ showBuildSettings gắn với đúng ref (workspace/project)
+          if [[ "${{ steps.where.outputs.type }}" == "workspace" ]]; then
+            APP_PATH=$(xcodebuild -workspace "${{ steps.where.outputs.path }}" \
+              -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null \
+              | awk -F' = ' '
+                  /TARGET_BUILD_DIR/ { t=$2 }
+                  /WRAPPER_NAME/     { w=$2 }
+                  END { if (t && w) print t "/" w }')
+          else
+            APP_PATH=$(xcodebuild -project "${{ steps.where.outputs.path }}" \
+              -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null \
+              | awk -F' = ' '
+                  /TARGET_BUILD_DIR/ { t=$2 }
+                  /WRAPPER_NAME/     { w=$2 }
+                  END { if (t && w) print t "/" w }')
+          fi
 
-          [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]] && { echo "❌ .app not found"; exit 1; }
+          # 2) Fallback: quét trong DerivedData build path
+          if [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]]; then
+            APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name "*.app" -print -quit || true)
+          fi
+
+          echo "APP_PATH=$APP_PATH"
+          if [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]]; then
+            echo "❌ .app not found after build" ; find build -maxdepth 4 -type d -name "*.app" ; exit 1
+          fi
+
           APP_NAME=$(basename "$APP_PATH" .app)
-          echo "✅ APP_PATH = $APP_PATH"
+
+          echo "== Tree of built app =="
+          /usr/bin/du -sh "$APP_PATH" || true
+          /bin/ls -lah "$APP_PATH" | sed -n '1,120p'
 
           rm -rf Payload *.ipa
           mkdir -p Payload
           cp -R "$APP_PATH" "Payload/$APP_NAME.app"
 
-          # Đọc Info.plist trong .app — bắt buộc hiện ra các key này
           PLIST="Payload/$APP_NAME.app/Info.plist"
-          echo "== Info.plist in .app =="
+          echo "== Validate Info.plist in .app =="
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST" || true
           /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST" || true
 
-          # Đóng gói IPA chính thống
           IPA_NAME="${APP_NAME}-unsigned.ipa"
           ditto -ck --sequesterRsrc --keepParent Payload "$IPA_NAME"
 
           echo "== IPA content preview =="
-          unzip -l "$IPA_NAME" | head -n 60
+          unzip -l "$IPA_NAME" | sed -n '1,80p'
           ls -lah "$IPA_NAME"
+          SIZE=$(stat -f%z "$IPA_NAME" || stat -c%s "$IPA_NAME")
+          if (( SIZE < 500000 )); then
+            echo "❌ IPA quá nhỏ ($SIZE bytes). Có gì đó sai ở bước build/packaging." ; exit 1
+          fi
 
       - name: Upload artifact (unsigned IPA)
         uses: actions/upload-artifact@v4
