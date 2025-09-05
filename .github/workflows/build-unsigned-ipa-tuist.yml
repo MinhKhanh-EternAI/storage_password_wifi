@@ -33,7 +33,6 @@ jobs:
   build-unsigned-ipa-tuist:
     runs-on: macos-14
     timeout-minutes: 45
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -114,28 +113,28 @@ jobs:
           
           # Remove BOM and normalize line endings
           python3 - <<'EOF'
-from pathlib import Path
-import sys
+          from pathlib import Path
+          import sys
 
-plist_file = Path('Info.plist')
-try:
-    content = plist_file.read_bytes()
-    
-    # Remove UTF-8 BOM if present
-    if content.startswith(b'\xef\xbb\xbf'):
-        content = content[3:]
-        print("✅ Removed UTF-8 BOM")
-    
-    # Normalize line endings to Unix format
-    content = content.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
-    
-    plist_file.write_bytes(content)
-    print("✅ Normalized line endings")
-    
-except Exception as e:
-    print(f"❌ Error processing plist: {e}")
-    sys.exit(1)
-EOF
+          plist_file = Path('Info.plist')
+          try:
+              content = plist_file.read_bytes()
+              
+              # Remove UTF-8 BOM if present
+              if content.startswith(b'\xef\xbb\xbf'):
+                  content = content[3:]
+                  print("✅ Removed UTF-8 BOM")
+              
+              # Normalize line endings to Unix format
+              content = content.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+              
+              plist_file.write_bytes(content)
+              print("✅ Normalized line endings")
+              
+          except Exception as e:
+              print(f"❌ Error processing plist: {e}")
+              sys.exit(1)
+          EOF
           
           # Convert to XML format and validate
           plutil -convert xml1 "$PLIST_FILE" || {
