@@ -27,7 +27,7 @@ jobs:
           brew install --formula tuist
           tuist version
 
-      # 1) Chuẩn hoá & kiểm tra Info.plist (tránh BOM/CRLF)
+      # 1) Chuẩn hoá & kiểm tra Info.plist (BOM/CRLF -> LF) — dùng perl, an toàn cho YAML
       - name: Normalize & validate Info.plist
         shell: bash
         run: |
@@ -35,22 +35,9 @@ jobs:
           if [[ ! -f Info.plist ]]; then
             echo "Missing Info.plist at repo root"; exit 1
           fi
-
-          # Viết file Python tạm để strip BOM và CRLF -> LF (an toàn cho YAML)
-          cat > /tmp/fix_plist.py <<'PY'
-from pathlib import Path
-p = Path('Info.plist')
-b = p.read_bytes()
-# strip UTF-8 BOM nếu có
-if b.startswith(b'\xef\xbb\xbf'):
-    b = b[3:]
-# CRLF/CR -> LF
-b = b.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
-p.write_bytes(b)
-PY
-          python3 /tmp/fix_plist.py
-
-          # Convert & lint để đảm bảo là XML hợp lệ
+          # Xoá BOM đầu file + chuyển CRLF/CR -> LF
+          perl -0777 -pe 's/^\x{FEFF}//; s/\r\n/\n/g; s/\r/\n/g;' -i '' Info.plist
+          # Convert về xml1 & lint
           plutil -convert xml1 Info.plist
           plutil -lint Info.plist
 
@@ -109,24 +96,18 @@ PY
           SCHEME="WiFiOffline"
           CONFIG="Release"
 
-          # Lấy APP_PATH từ showBuildSettings gắn đúng ref (workspace/project)
+          # Lấy APP_PATH từ showBuildSettings đúng theo workspace/project
           if [[ "${{ steps.where.outputs.type }}" == "workspace" ]]; then
             APP_PATH=$(xcodebuild -workspace "${{ steps.where.outputs.path }}" \
               -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null \
-              | awk -F' = ' '
-                  /TARGET_BUILD_DIR/ { t=$2 }
-                  /WRAPPER_NAME/     { w=$2 }
-                  END { if (t && w) print t "/" w }')
+              | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
           else
             APP_PATH=$(xcodebuild -project "${{ steps.where.outputs.path }}" \
               -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null \
-              | awk -F' = ' '
-                  /TARGET_BUILD_DIR/ { t=$2 }
-                  /WRAPPER_NAME/     { w=$2 }
-                  END { if (t && w) print t "/" w }')
+              | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
           fi
 
-          # Fallback nếu vẫn rỗng: quét sản phẩm build
+          # Fallback: quét sản phẩm build
           if [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]]; then
             APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name "*.app" -print -quit || true)
           fi

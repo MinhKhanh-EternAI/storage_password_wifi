@@ -1,3 +1,2 @@
-# Ngăn CRLF làm hỏng file cấu hình iOS
 *.plist   text eol=lf
 *.pbxproj text eol=lf
