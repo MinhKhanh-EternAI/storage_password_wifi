@@ -36,13 +36,14 @@ jobs:
           fi
           # strip BOM/CRLF nếu có
           python3 - <<'PY'
-from pathlib import Path
-p = Path('Info.plist')
-b = p.read_bytes()
-if b.startswith(b'\xef\xbb\xbf'): b=b[3:]
-b = b.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
-p.write_bytes(b)
-PY
+          from pathlib import Path
+          p = Path('Info.plist')
+          b = p.read_bytes()
+          if b.startswith(b'\xef\xbb\xbf'):
+              b = b[3:]
+          b = b.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+          p.write_bytes(b)
+          PY
           plutil -convert xml1 Info.plist
           plutil -lint Info.plist
 
