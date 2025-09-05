@@ -1,128 +1,36 @@
-name: build-unsigned-ipa-tuist
+name: iOS CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: macos-14
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Show Xcode / macOS
-        run: |
-          xcodebuild -version
-          sw_vers
-
+      - uses: actions/checkout@v3
       - name: Install Tuist
-        run: |
-          brew update
-          brew tap tuist/tuist
-          brew install --formula tuist
-          tuist version
-
-      # 1) Normalize & validate Info.plist (strip BOM/CRLF -> LF) using perl (YAML-safe)
-      - name: Normalize & validate Info.plist
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! -f Info.plist ]]; then
-            echo "Missing Info.plist at repo root"; exit 1
-          fi
-          # Strip BOM + convert CRLF/CR -> LF
-          perl -0777 -pe 's/^\x{FEFF}//; s/\r\n/\n/g; s/\r/\n/g;' -i '' Info.plist
-          plutil -convert xml1 Info.plist
-          plutil -lint Info.plist
-
-      # 2) Tuist generate
-      - name: Generate Xcode project (Tuist)
+        run: brew install tuist@4.67.2
+      - name: Generate Xcode project
         run: tuist generate --no-open
-
-      - name: Detect workspace/project (once)
-        id: where
-        shell: bash
+      - name: Build IPA unsigned
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          workspaces=( ./*.xcworkspace )
-          projects=( ./*.xcodeproj )
-          if (( ${#workspaces[@]} > 0 )); then
-            echo "type=workspace" >> $GITHUB_OUTPUT
-            echo "path=${workspaces[0]}" >> $GITHUB_OUTPUT
-            echo "Found workspace: ${workspaces[0]}"
-          elif (( ${#projects[@]} > 0 )); then
-            echo "type=project" >> $GITHUB_OUTPUT
-            echo "path=${projects[0]}" >> $GITHUB_OUTPUT
-            echo "Found project: ${projects[0]}"
-          else
-            echo "No .xcworkspace or .xcodeproj found"
-            exit 1
-          fi
-
-      # 3) Build iphoneos (unsigned)
-      - name: Build unsigned .app (iphoneos)
-        shell: bash
-        run: |
-          set -euo pipefail
-          DERIVED="build"
-          SCHEME="WiFiOffline"
-
-          if [[ "${{ steps.where.outputs.type }}" == "workspace" ]]; then
-            xcodebuild -workspace "${{ steps.where.outputs.path }}"               -scheme "$SCHEME" -configuration Release               -sdk iphoneos -destination 'generic/platform=iOS'               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY=""               -derivedDataPath "$DERIVED" clean build
-          else
-            xcodebuild -project "${{ steps.where.outputs.path }}"               -scheme "$SCHEME" -configuration Release               -sdk iphoneos -destination 'generic/platform=iOS'               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY=""               -derivedDataPath "$DERIVED" clean build
-          fi
-
-      # 4) Package IPA with ditto + ensure essential Info.plist keys
-      - name: Package unsigned IPA (proper, with fallbacks)
-        shell: bash
-        run: |
-          set -euo pipefail
-          SCHEME="WiFiOffline"
-          CONFIG="Release"
-
-          if [[ "${{ steps.where.outputs.type }}" == "workspace" ]]; then
-            APP_PATH=$(xcodebuild -workspace "${{ steps.where.outputs.path }}"               -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null               | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
-          else
-            APP_PATH=$(xcodebuild -project "${{ steps.where.outputs.path }}"               -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null               | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
-          fi
-
-          [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]] && APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name "*.app" -print -quit || true)
-          echo "APP_PATH=$APP_PATH"
-          [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]] && { echo "App bundle not found"; exit 1; }
-
-          APP_NAME=$(basename "$APP_PATH" .app)
-
-          rm -rf Payload *.ipa
-          mkdir -p Payload
-          cp -R "$APP_PATH" "Payload/$APP_NAME.app"
-
-          PLIST="Payload/$APP_NAME.app/Info.plist"
-
-          echo "== Ensure essential keys in Info.plist =="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$PLIST" >/dev/null 2>&1             || /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $APP_NAME" "$PLIST"             || /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $APP_NAME" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST" >/dev/null 2>&1             || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string 1.0" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST" >/dev/null 2>&1             || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1" "$PLIST"
-
-          echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")"
-          echo "CFBundleExecutable: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST")"
-
-          IPA_NAME="${APP_NAME}-unsigned.ipa"
-          ditto -ck --sequesterRsrc --keepParent Payload "$IPA_NAME"
-
-          echo "== IPA content preview =="
-          unzip -l "$IPA_NAME" | sed -n '1,80p'
-          ls -lah "$IPA_NAME"
-
-      - name: Upload artifact (unsigned IPA)
-        uses: actions/upload-artifact@v4
+          xcodebuild -workspace WiFiOffline.xcworkspace \
+            -scheme WiFiOffline \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination generic/platform=iOS \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_IDENTITY="" \
+            -derivedDataPath build clean build
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          ditto -ck --sequesterRsrc --keepParent Payload WiFiOffline-unsigned.ipa
+      - uses: actions/upload-artifact@v3
         with:
-          name: unsigned-ipa
-          path: "*.ipa"
-          if-no-files-found: error
+          name: ipa
+          path: WiFiOffline-unsigned.ipa

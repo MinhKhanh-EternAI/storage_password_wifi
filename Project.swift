@@ -4,10 +4,11 @@ let project = Project(
     name: "WiFiOffline",
     organizationName: "MinhKhanh",
     packages: [],
+    settings: .settings(),
     targets: [
         Target(
             name: "WiFiOffline",
-            destinations: .iOS, // chỉ iPhone, nếu muốn universal thì .iOS([.iPhone, .iPad])
+            destinations: [.iPhone],
             product: .app,
             bundleId: "com.example.wifioffline",
             deploymentTargets: .iOS("16.0"),
@@ -22,8 +23,8 @@ let project = Project(
         Scheme(
             name: "WiFiOffline",
             shared: true,
-            buildAction: .buildAction(targets: ["WiFiOffline"]),
-            runAction: .runAction(configuration: .release)
+            buildAction: BuildAction(targets: ["WiFiOffline"]),
+            runAction: RunAction(configuration: .release)
         )
     ]
 )
