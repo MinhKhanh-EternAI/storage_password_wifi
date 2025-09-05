@@ -7,6 +7,16 @@ configs:
   Debug: debug
   Release: release
 
+schemes:
+  WiFiOffline:
+    build:
+      targets:
+        WiFiOffline: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
 targets:
   WiFiOffline:
     type: application
@@ -46,13 +56,6 @@ targets:
         CFBundleInfoDictionaryVersion: "6.0"
         LSRequiresIPhoneOS: true
         
-        UIApplicationSceneManifest:
-          UIApplicationSupportsMultipleScenes: false
-          UISceneConfigurations:
-            UIWindowSceneSessionRoleApplication:
-              - UISceneConfigurationName: Default Configuration
-                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
-                
         UIApplicationSupportsIndirectInputEvents: true
         UILaunchScreen: {}
         
@@ -60,4 +63,4 @@ targets:
           - UIInterfaceOrientationPortrait
           
         UIRequiredDeviceCapabilities:
-          - armv7
+          - arm64

@@ -37,6 +37,11 @@ jobs:
           echo "Generated project files:"
           ls -la *.xcodeproj || echo "No .xcodeproj found"
           ls -la *.xcworkspace || echo "No .xcworkspace found"
+          echo "Project contents:"
+          if [ -d "WiFiOffline.xcodeproj" ]; then
+            echo "Xcode project structure:"
+            find WiFiOffline.xcodeproj -name "*.pbxproj" | head -1 | xargs head -20
+          fi
 
       - name: Build unsigned .app (iphoneos)
         run: |
@@ -72,20 +77,28 @@ jobs:
       - name: Package IPA
         run: |
           set -euo pipefail
+          echo "Looking for built app..."
+          echo "Build directory structure:"
+          find build -type d -name "*Products*" | head -5
+          find build -name "*.app" -type d
+          
           APP_PATH=$(find build -name "*.app" -type d -print -quit)
           if [ -z "$APP_PATH" ]; then
             echo "Error: No .app file found in build directory"
-            echo "Contents of build directory:"
-            find build -type f -name "*.app" || echo "No .app files found"
-            find build -name "*WiFiOffline*" || echo "No WiFiOffline files found"
-            ls -la build/
+            echo "Full build directory contents:"
+            find build -type f | head -20
+            find build -type d | head -20
+            echo "Looking for any WiFiOffline related files:"
+            find build -name "*WiFiOffline*" -o -name "*wifioffline*" || echo "No WiFiOffline files found"
             exit 1
           fi
           echo "Found app at: $APP_PATH"
+          echo "App size: $(du -sh "$APP_PATH")"
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           /usr/bin/zip -qry WiFiOffline-unsigned.ipa Payload
           rm -rf Payload
+          echo "IPA created successfully:"
           ls -la WiFiOffline-unsigned.ipa
 
       - name: Upload unsigned IPA
