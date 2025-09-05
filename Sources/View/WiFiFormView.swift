@@ -2,7 +2,6 @@ import SwiftUI
 
 struct WiFiFormView: View {
     @Environment(\.dismiss) private var dismiss
-
     @State var item: WiFiNetwork
     var onSubmit: (WiFiNetwork) -> Void = { _ in }
 
@@ -11,8 +10,10 @@ struct WiFiFormView: View {
             Section("Thông tin cơ bản") {
                 TextField("SSID", text: $item.ssid)
                     .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
                 SecureField("Mật khẩu", text: $item.password)
                     .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
                 Picker("Bảo mật", selection: $item.security) {
                     ForEach(WiFiNetwork.Security.allCases) { s in
                         Text(s.rawValue).tag(s)

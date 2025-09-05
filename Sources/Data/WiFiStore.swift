@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-/// Lưu JSON trong thư mục Documents/WiFiOffline/wifi.json
+/// Lưu JSON trong Documents/WiFiOffline/wifi.json (local only)
 final class WiFiStore: ObservableObject {
     @Published private(set) var items: [WiFiNetwork] = []
     private let folderName = "WiFiOffline"
@@ -10,14 +10,13 @@ final class WiFiStore: ObservableObject {
 
     init() {
         load()
-        // Tự lưu mỗi khi dữ liệu đổi
         $items
-            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in self?.save() }
             .store(in: &cancellables)
     }
 
-    // MARK: File URLs
+    // MARK: URLs
     private var folderURL: URL {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         return dir.appendingPathComponent(folderName, isDirectory: true)
@@ -40,12 +39,11 @@ final class WiFiStore: ObservableObject {
     func load() {
         do {
             try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-            if !FileManager.default.fileExists(atPath: fileURL.path) {
-                items = []
-                return
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                items = []; return
             }
             let data = try Data(contentsOf: fileURL)
-            let decoded = try JSONDecoder().decode([WiFiNetwork].self, from: data)
+            let decoded = try JSONDecoder(dateISO8601: ()).decode([WiFiNetwork].self, from: data)
             items = decoded
         } catch {
             print("Load error:", error)
@@ -68,9 +66,9 @@ final class WiFiStore: ObservableObject {
         try JSONEncoder.pretty.encode(items)
     }
     func importData(_ data: Data, merge: Bool) throws {
-        let incoming = try JSONDecoder().decode([WiFiNetwork].self, from: data)
+        let incoming = try JSONDecoder(dateISO8601: ()).decode([WiFiNetwork].self, from: data)
         if merge {
-            // hợp nhất theo id, ssid
+            // hợp nhất theo id/ssid
             var map = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
             for n in incoming {
                 if let existed = items.first(where: { $0.ssid == n.ssid }) {

@@ -1,3 +1,4 @@
+// Project.swift — Tuist 4
 import ProjectDescription
 
 let project = Project(
@@ -7,8 +8,8 @@ let project = Project(
             name: "WiFiOffline",
             destinations: [.iPhone],
             product: .app,
-            bundleId: "com.example.wifioffline",
-            deploymentTargets: .iOS("14.0"),
+            bundleId: "com.example.wifioffline",   // đổi nếu bạn muốn
+            deploymentTargets: .iOS("16.0"),
             infoPlist: .file(path: "Info.plist"),
             sources: ["Sources/**"],
             resources: []

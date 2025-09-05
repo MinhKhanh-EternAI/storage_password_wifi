@@ -16,7 +16,7 @@ struct WiFiNetwork: Identifiable, Codable, Equatable {
     }
 }
 
-/// Định dạng QR theo chuẩn iOS (WIFI:T:WPA;S:MySSID;P:mypass;;)
+/// QR theo chuẩn: WIFI:T:WPA;S:MySSID;P:mypass;;
 extension WiFiNetwork {
     var qrPayload: String {
         let t: String

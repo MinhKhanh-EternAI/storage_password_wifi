@@ -5,7 +5,6 @@ struct WiFiDetailView: View {
     var onUpdate: (WiFiNetwork) -> Void
     var onDelete: () -> Void
     var onEdit: () -> Void
-
     @State private var showShareSheet = false
 
     var body: some View {
@@ -50,7 +49,7 @@ struct WiFiDetailView: View {
         }
         .navigationTitle(item.ssid)
         .sheet(isPresented: $showShareSheet) {
-            ShareSheet(items: [UIImage.qr(from: item.qrPayload, size: 600)])
+            ShareSheet(items: [UIImage.qr(from: item.qrPayload, size: 800)])
         }
     }
 
@@ -71,14 +70,4 @@ struct ShareSheet: UIViewControllerRepresentable {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
-}
-
-// MARK: – QR UIImage
-extension UIImage {
-    static func qr(from text: String, size: CGFloat) -> UIImage {
-        let view = QRCodeView(text: text, size: size)
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = UIScreen.main.scale
-        return renderer.uiImage ?? UIImage()
-    }
 }

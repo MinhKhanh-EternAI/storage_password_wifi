@@ -6,7 +6,7 @@ struct QRCodeView: View {
     let size: CGFloat
 
     var body: some View {
-        Image(uiImage: qrImage(text: text, size: size))
+        Image(uiImage: UIImage.qr(from: text, size: size))
             .interpolation(.none)
             .resizable()
             .scaledToFit()
@@ -14,18 +14,33 @@ struct QRCodeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(radius: 6)
     }
+}
 
-    private func qrImage(text: String, size: CGFloat) -> UIImage {
+extension UIImage {
+    /// Tạo ảnh QR từ chuỗi với CoreImage (render vector), sau đó dùng ImageRenderer để đảm bảo kích thước/scale đẹp.
+    static func qr(from text: String, size: CGFloat) -> UIImage {
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(text.utf8)
-        filter.correctionLevel = "M" // L/M/Q/H
+        filter.correctionLevel = "M"
 
-        let transform = CGAffineTransform(scaleX: size/128, y: size/128)
-        let output = filter.outputImage?.transformed(by: transform) ?? CIImage(color: .white)
-        if let cgimg = context.createCGImage(output, from: output.extent) {
-            return UIImage(cgImage: cgimg)
+        let base = filter.outputImage ?? CIImage(color: .white)
+        let scale = max(size / 128.0, 1.0)
+        let transformed = base.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+
+        guard let cg = context.createCGImage(transformed, from: transformed.extent) else {
+            return UIImage()
         }
-        return UIImage()
+        let ciImage = UIImage(cgImage: cg)
+
+        // iOS 16+: render bằng ImageRenderer để khử aliasing & set đúng scale
+        let view = Image(uiImage: ciImage)
+            .interpolation(.none)
+            .resizable()
+            .frame(width: size, height: size)
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        return renderer.uiImage ?? ciImage
     }
 }
