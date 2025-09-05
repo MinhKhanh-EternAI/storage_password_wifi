@@ -1,36 +1,118 @@
-name: iOS CI
+name: ci: Xcode/Tuist unsigned IPA pipeline
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  build-unsigned-ipa-tuist:
     runs-on: macos-14
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Install Tuist
-        run: brew install tuist@4.67.2
-      - name: Generate Xcode project
-        run: tuist generate --no-open
-      - name: Build IPA unsigned
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode / macOS
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: Install Tuist 4.67.2
+        run: |
+          brew update
+          brew install tuist@4.67.2
+
+      # Chuẩn hoá Info.plist (tránh BOM/CRLF) & lint nhanh
+      - name: Normalize & validate Info.plist
+        shell: bash
         run: |
           set -euo pipefail
-          xcodebuild -workspace WiFiOffline.xcworkspace \
+          if [[ ! -f Info.plist ]]; then
+            echo "❌ Missing Info.plist"; exit 1
+          fi
+          # strip BOM/CRLF nếu có
+          python3 - <<'PY'
+from pathlib import Path
+p = Path('Info.plist')
+b = p.read_bytes()
+if b.startswith(b'\xef\xbb\xbf'): b=b[3:]
+b = b.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+p.write_bytes(b)
+PY
+          plutil -convert xml1 Info.plist
+          plutil -lint Info.plist
+
+      - name: Generate Xcode project (Tuist)
+        run: tuist generate --no-open
+
+      - name: Build unsigned .app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -workspace ./WiFiOffline.xcworkspace \
             -scheme WiFiOffline \
             -configuration Release \
             -sdk iphoneos \
             -destination generic/platform=iOS \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY= \
             -derivedDataPath build clean build
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
-          mkdir Payload
+
+      - name: Package unsigned IPA (proper, with fallbacks)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCHEME="WiFiOffline"
+          CONFIG="Release"
+
+          # Lấy đường dẫn .app tin cậy từ showBuildSettings
+          APP_PATH=$(xcodebuild -workspace "./WiFiOffline.xcworkspace" \
+            -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null \
+            | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
+
+          # Fallback nếu rỗng
+          if [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]]; then
+            APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name "*.app" -print -quit || true)
+          fi
+
+          echo "APP_PATH=$APP_PATH"
+          [[ -d "$APP_PATH" ]]
+
+          # Kiểm tra một số key plist tối thiểu để eSign đọc được
+          PLIST="$APP_PATH/Info.plist"
+          echo "== Ensure essential keys in Info.plist =="
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST" || {
+            # Nếu chưa có, gán từ tên app
+            APP_NAME=$(basename "$APP_PATH" .app)
+            /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $APP_NAME" "$PLIST"
+          }
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST" || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 1.0' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST" || /usr/libexec/PlistBuddy -c 'Add :CFBundleVersion string 1' "$PLIST"
+
+          # Đóng gói IPA
+          rm -rf Payload *.ipa
+          mkdir -p Payload
           cp -R "$APP_PATH" Payload/
-          ditto -ck --sequesterRsrc --keepParent Payload WiFiOffline-unsigned.ipa
-      - uses: actions/upload-artifact@v3
+          IPA_NAME="WiFiOffline-unsigned.ipa"
+          ditto -ck --sequesterRsrc --keepParent Payload "$IPA_NAME"
+
+          echo "== IPA content preview =="
+          unzip -l "$IPA_NAME" | sed -n '1,80p'
+          size=$(stat -f%z "$IPA_NAME" 2>/dev/null || stat -c%s "$IPA_NAME")
+          echo "IPA size: $size bytes"
+          if (( size < 500000 )); then
+            echo "IPA too small -> probably invalid"; exit 1
+          fi
+
+      # ⬆️ v4 là bắt buộc (v3 bị deprecate nên mới fail)
+      - name: Upload artifact (IPA)
+        uses: actions/upload-artifact@v4
         with:
-          name: ipa
+          name: WiFiOffline-unsigned
           path: WiFiOffline-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
