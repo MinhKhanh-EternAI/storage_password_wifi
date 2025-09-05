@@ -10,10 +10,9 @@ struct ContentView: View {
     @State private var showImporter = false
     @State private var showExporter = false
     @State private var exportTempURL: URL?
-    @State private var exportDoc: FileDocumentURL?      // tách document để compiler dễ type-check
+    @State private var exportDoc: FileDocumentURL?
     @State private var search = ""
 
-    // Lọc danh sách theo từ khoá
     private var filtered: [WiFiNetwork] {
         let s = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !s.isEmpty else { return store.items }
@@ -36,7 +35,6 @@ struct ContentView: View {
                     get: { theme.appearance },
                     set: { theme.appearance = $0 }
                 ))
-
                 TrailingActionToolbar(
                     importTapped: { showImporter = true },
                     exportTapped: doExport,
@@ -46,29 +44,37 @@ struct ContentView: View {
             // Add
             .sheet(isPresented: $showAdd) {
                 NavigationStack {
-                    WiFiFormView(item: .init(ssid: "", password: ""))
-                        .navigationTitle("Thêm Wi-Fi")
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) { Button("Đóng") { showAdd = false } }
-                        }
-                        .onSubmit { item in
+                    WiFiFormView(
+                        item: .init(ssid: "", password: ""),
+                        onSubmit: { item in
                             store.add(item)
                             showAdd = false
                         }
+                    )
+                    .navigationTitle("Thêm Wi-Fi")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Đóng") { showAdd = false }
+                        }
+                    }
                 }
             }
             // Edit
             .sheet(item: $editItem) { item in
                 NavigationStack {
-                    WiFiFormView(item: item)
-                        .navigationTitle("Sửa Wi-Fi")
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) { Button("Đóng") { editItem = nil } }
-                        }
-                        .onSubmit { updated in
+                    WiFiFormView(
+                        item: item,
+                        onSubmit: { updated in
                             store.update(updated)
                             editItem = nil
                         }
+                    )
+                    .navigationTitle("Sửa Wi-Fi")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Đóng") { editItem = nil }
+                        }
+                    }
                 }
             }
             // Importer
@@ -84,7 +90,7 @@ struct ContentView: View {
                     } catch { print("Import error:", error) }
                 }
             }
-            // Exporter (dùng exportDoc để giảm độ phức tạp biểu thức)
+            // Exporter
             .fileExporter(
                 isPresented: $showExporter,
                 document: exportDoc,
@@ -116,9 +122,8 @@ struct ContentView: View {
     }
 }
 
-#pragma mark - Subviews (tách nhỏ để giảm tải type-check)
+// MARK: - Subviews (tách nhỏ để giảm tải type-check)
 
-/// Danh sách chính (đã bóc tách khỏi ContentView)
 struct MainListView: View {
     let items: [WiFiNetwork]
     let onEdit: (WiFiNetwork) -> Void
@@ -159,7 +164,6 @@ struct MainListView: View {
     }
 }
 
-/// Hàng hiển thị 1 wifi
 struct WiFiRow: View {
     let item: WiFiNetwork
     var body: some View {
@@ -181,7 +185,6 @@ struct WiFiRow: View {
     }
 }
 
-/// Màn hình chi tiết bọc lại để làm đích của NavigationLink (nhẹ hơn cho type-check)
 struct WiFiDetailHost: View {
     let item: WiFiNetwork
     let onUpdate: (WiFiNetwork) -> Void
@@ -192,7 +195,6 @@ struct WiFiDetailHost: View {
     }
 }
 
-/// Empty state
 struct EmptyState: View {
     var body: some View {
         Section {
@@ -210,7 +212,7 @@ struct EmptyState: View {
     }
 }
 
-#pragma mark - Toolbars (đóng gói thành ToolbarContent)
+// MARK: - Toolbars
 
 struct LeadingAppearanceToolbar: ToolbarContent {
     @Binding var appearance: AppTheme.Appearance
@@ -244,9 +246,8 @@ struct TrailingActionToolbar: ToolbarContent {
     }
 }
 
-#pragma mark - FileDocument wrapper
+// MARK: - FileDocument wrapper
 
-/// Gói URL tạm thành FileDocument để dùng với .fileExporter
 struct FileDocumentURL: FileDocument {
     static var readableContentTypes: [UTType] = [.json]
     static var writableContentTypes: [UTType] = [.json]
