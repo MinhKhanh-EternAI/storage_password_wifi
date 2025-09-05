@@ -1,6 +1,8 @@
 name: WiFiOffline
 options:
+  bundleIdPrefix: com.example
   createIntermediateGroups: true
+  
 configs:
   Debug: debug
   Release: release
@@ -10,77 +12,52 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "14.0"
-
-    # Sources configuration
+    
     sources:
-      - path: Sources
-        name: Sources
-        type: group
-
-    # Resources (nếu có)
-    resources:
-      - path: Resources
-        optional: true
-
-    # Entitlements
+      - Sources
+      
     entitlements:
       path: Entitlements/WiFiOffline.entitlements
-
+      
     settings:
       base:
-        # Code signing settings
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.wifioffline
+        PRODUCT_NAME: WiFiOffline
         CODE_SIGN_STYLE: Manual
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGNING_IDENTITY: ""
         PROVISIONING_PROFILE: ""
         DEVELOPMENT_TEAM: ""
-        
-        # Product settings
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.wifioffline
-        PRODUCT_NAME: WiFiOffline
-        
-        # Build settings
-        TARGETED_DEVICE_FAMILY: "1"
-        SUPPORTS_MACCATALYST: NO
         SWIFT_VERSION: "5.0"
-        
-        # Deployment
+        TARGETED_DEVICE_FAMILY: "1"
         IPHONEOS_DEPLOYMENT_TARGET: "14.0"
-        
-        # Other settings
         ENABLE_BITCODE: NO
-        SKIP_INSTALL: NO
-
+        
     info:
-      path: Info.plist
       properties:
         CFBundleName: WiFiOffline
         CFBundleDisplayName: WiFi Offline
-        CFBundleIdentifier: com.example.wifioffline
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         CFBundlePackageType: APPL
-        CFBundleExecutable: WiFiOffline
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleInfoDictionaryVersion: "6.0"
+        LSRequiresIPhoneOS: true
         
-        # UI Configuration
-        UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-        UISupportedInterfaceOrientations~ipad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
-          
-        UIRequiredDeviceCapabilities:
-          - arm64
-          
-        # App Transport Security
-        NSAppTransportSecurity:
-          NSAllowsArbitraryLoads: false
-          
-        # SwiftUI
-        UISceneDelegate: false
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+                
+        UIApplicationSupportsIndirectInputEvents: true
+        UILaunchScreen: {}
+        
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          
+        UIRequiredDeviceCapabilities:
+          - armv7

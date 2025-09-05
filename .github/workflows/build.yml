@@ -15,11 +15,14 @@ jobs:
       - name: Show repo tree
         run: |
           pwd
+          echo "=== Root directory ==="
           ls -la
-          echo "---- Sources ----"
-          ls -la Sources || true
-          echo "---- project.yml ----"
-          cat project.yml
+          echo "=== Sources directory ==="
+          ls -la Sources/ || echo "Sources directory not found"
+          echo "=== Entitlements directory ==="
+          ls -la Entitlements/ || echo "Entitlements directory not found"
+          echo "=== project.yml content ==="
+          cat project.yml || echo "project.yml not found"
 
       - name: Install tools
         run: |
