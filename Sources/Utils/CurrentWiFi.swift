@@ -3,7 +3,7 @@ import CoreLocation
 import SystemConfiguration.CaptiveNetwork
 import NetworkExtension
 
-/// Quản lý SSID hiện tại + kết nối Wi-Fi qua NEHotspotConfiguration.
+/// Quản lý SSID hiện tại + kết nối Wi-Fi bằng NEHotspotConfiguration.
 final class CurrentWiFi: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     @Published var currentSSID: String? = nil
@@ -29,7 +29,8 @@ final class CurrentWiFi: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
+        if manager.authorizationStatus == .authorizedWhenInUse ||
+           manager.authorizationStatus == .authorizedAlways {
             fetchSSID()
         } else {
             currentSSID = nil
@@ -68,27 +69,25 @@ final class CurrentWiFi: NSObject, ObservableObject, CLLocationManagerDelegate {
     // MARK: - Kết nối Wi-Fi (best effort)
 
     /// Kết nối tới SSID/password/security bằng NEHotspotConfiguration.
-    /// - Returns: thông báo lỗi (nếu có) qua completion.
-    func connect(ssid: String, password: String?, security: WiFiNetwork.Security, joinOnce: Bool = false, completion: @escaping (Error?) -> Void) {
+    func connect(ssid: String,
+                 password: String?,
+                 security: WiFiNetwork.Security,
+                 joinOnce: Bool = false,
+                 completion: @escaping (Error?) -> Void) {
+
         let conf: NEHotspotConfiguration
         switch security {
         case .open:
             conf = NEHotspotConfiguration(ssid: ssid)
         case .wep:
-            conf = NEHotspotConfiguration(ssid: ssid, wep: password ?? "")
-        case .wpa, .wpa2:
-            conf = NEHotspotConfiguration(ssid: ssid, passphrase: password ?? "", isWEP: false)
-        case .wpa3:
-            if #available(iOS 14.0, *) {
-                conf = NEHotspotConfiguration(ssid: ssid, passphrase: password ?? "", isWEP: false)
-                conf.joinOnce = joinOnce
-                NEHotspotConfigurationManager.shared.apply(conf) { err in
-                    completion(err) // WPA3 dùng API chung, iOS sẽ xử lý
-                }
-                return
-            } else {
-                conf = NEHotspotConfiguration(ssid: ssid, passphrase: password ?? "", isWEP: false)
-            }
+            // ✅ ĐÚNG: dùng passphrase + isWEP: true (không có init với nhãn `wep:`)
+            conf = NEHotspotConfiguration(ssid: ssid,
+                                          passphrase: password ?? "",
+                                          isWEP: true)
+        case .wpa, .wpa2, .wpa3:
+            conf = NEHotspotConfiguration(ssid: ssid,
+                                          passphrase: password ?? "",
+                                          isWEP: false)
         }
         conf.joinOnce = joinOnce
         NEHotspotConfigurationManager.shared.apply(conf) { err in
