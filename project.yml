@@ -5,38 +5,23 @@ configs:
   Debug: debug
   Release: release
 
-schemes:
-  WiFiOffline:
-    build:
-      targets:
-        WiFiOffline: all
-    run:
-      config: Debug
-    archive:
-      config: Release
-
 targets:
   WiFiOffline:
     type: application
     platform: iOS
     deploymentTarget: "14.0"
-    # Trỏ trực tiếp tới file để tránh lỗi path folder
+
+    # Chỉ rõ TỪNG FILE cho chắc (tránh lỗi 'path')
     sources:
       - path: ./Sources/WiFiOfflineApp.swift
       - path: ./Sources/ContentView.swift
-    
-    # Entitlements file
-    entitlements:
-      path: ./Entitlements/WiFiOffline.entitlements
 
-    # Không ký khi build
     settings:
       CODE_SIGN_STYLE: Manual
       CODE_SIGNING_ALLOWED: NO
       CODE_SIGNING_REQUIRED: NO
       CODE_SIGNING_IDENTITY: ""
 
-    # XcodeGen sẽ tự sinh Info.plist từ properties bên dưới
     info:
       properties:
         CFBundleName: WiFiOffline

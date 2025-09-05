@@ -18,8 +18,6 @@ jobs:
           ls -la
           echo "---- Sources ----"
           ls -la Sources || true
-          echo "---- Entitlements ----"
-          ls -la Entitlements || true
           echo "---- project.yml ----"
           cat project.yml
 
@@ -35,7 +33,6 @@ jobs:
           xcodegen generate
           echo "Generated project files:"
           ls -la *.xcodeproj || echo "No .xcodeproj found"
-          ls -la *.xcworkspace || echo "No .xcworkspace found"
 
       - name: Build unsigned .app (iphoneos)
         run: |
@@ -53,8 +50,6 @@ jobs:
       - name: Package IPA
         run: |
           set -euo pipefail
-          echo "Looking for built app..."
-          find build -name "*.app" -type d
           APP_PATH=$(find build -name "*.app" -type d -print -quit)
           if [ -z "$APP_PATH" ]; then
             echo "Error: No .app file found in build directory"
@@ -65,7 +60,6 @@ jobs:
           cp -R "$APP_PATH" Payload/
           /usr/bin/zip -qry WiFiOffline-unsigned.ipa Payload
           rm -rf Payload
-          echo "IPA created: WiFiOffline-unsigned.ipa"
           ls -la WiFiOffline-unsigned.ipa
 
       - name: Upload unsigned IPA
