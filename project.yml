@@ -11,7 +11,7 @@ targets:
     platform: iOS
     deploymentTarget: "14.0"
 
-    # Chỉ rõ từng file để tránh lỗi 'path'
+    # Trỏ THẲNG tới file để tránh lỗi 'path'
     sources:
       - path: ./Sources/WiFiOfflineApp.swift
       - path: ./Sources/ContentView.swift
