@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Dùng runner mới của GitHub. Nếu bạn cần Intel, đổi thành macos-13.
+    runs-on: macos-14
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project from project.yml
+        run: xcodegen
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            ~/.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Detect scheme automatically
+        id: scheme
+        run: |
+          # Lấy scheme đầu tiên trong project
+          SCHEME=$(xcodebuild -list -json | /usr/bin/python3 -c "import sys, json; d=json.load(sys.stdin); print((d.get('project') or {}).get('schemes',[None])[0])")
+          if [ -z "$SCHEME" ] || [ "$SCHEME" = "None" ]; then
+            echo "Không tìm thấy scheme. Hãy khai báo SCHEME thủ công."
+            exit 1
+          fi
+          echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
+
+      - name: Build (no codesign)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -scheme "${{ steps.scheme.outputs.scheme }}" \
+            -configuration Debug \
+            -sdk macosx \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build | xcpretty || exit ${PIPESTATUS[0]}
+        env:
+          NSUnbufferedIO: "YES"
+
+      # Nếu có unit tests, bước này sẽ chạy. Nếu không có tests, có thể xóa.
+      - name: Test (if any)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -scheme "${{ steps.scheme.outputs.scheme }}" \
+            -configuration Debug \
+            -sdk macosx \
+            CODE_SIGNING_ALLOWED=NO \
+            test | xcpretty || exit ${PIPESTATUS[0]}
+
+      - name: Package .app or binary artifact
+        run: |
+          mkdir -p build_artifacts
+          # Thu thập mọi sản phẩm build ra (app, bundle, binary)
+          find ~/Library/Developer/Xcode/DerivedData -type d -name "Build" -prune -o -type f \( -name "*.app" -o -perm +111 \) -print | while read -r f; do
+            # Copy app nguyên vẹn hoặc binary
+            if [[ "$f" == *.app ]]; then
+              NAME=$(basename "$f" .app)
+              zip -qry "build_artifacts/${NAME}.zip" "$f"
+            else
+              cp -f "$f" "build_artifacts/$(basename "$f")" || true
+            fi
+          done
+          ls -lah build_artifacts || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-products
+          path: build_artifacts
+          if-no-files-found: warn
