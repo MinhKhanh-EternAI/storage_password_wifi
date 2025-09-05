@@ -1,0 +1,117 @@
+name: ci-xcodegen-unsigned-ipa
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-iphoneos:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode / macOS
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: Install XcodeGen
+        run: |
+          brew update
+          brew install xcodegen
+          xcodegen --version
+
+      - name: Generate Xcode project from project.yml
+        run: xcodegen
+
+      - name: Detect scheme
+        id: scheme
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCHEME=$(xcodebuild -list -json | /usr/bin/python3 - <<'PY'
+import sys, json
+d = json.load(sys.stdin)
+proj = d.get("project") or {}
+schemes = proj.get("schemes") or []
+print(schemes[0] if schemes else "")
+PY
+)
+          if [ -z "$SCHEME" ]; then
+            echo "❌ Không tìm thấy scheme. Hãy share scheme trong Xcode hoặc khai báo tên scheme cố định."
+            exit 1
+          fi
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "✅ Scheme: $SCHEME"
+
+      - name: Build unsigned .app (iphoneos)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "== Debug: list project/workspace (root) =="
+          ls -lah
+          echo "== Find workspace/project =="
+          shopt -s nullglob
+          workspaces=( ./*.xcworkspace )
+          projects=( ./*.xcodeproj )
+
+          DERIVED="build"
+
+          if (( ${#workspaces[@]} > 0 )); then
+            WS="${workspaces[0]}"
+            echo "Found workspace: $WS"
+            xcodebuild \
+              -workspace "$WS" \
+              -scheme "${{ steps.scheme.outputs.scheme }}" \
+              -configuration Release \
+              -sdk iphoneos \
+              -destination 'generic/platform=iOS' \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
+              -derivedDataPath "$DERIVED" \
+              clean build
+          elif (( ${#projects[@]} > 0 )); then
+            PROJ="${projects[0]}"
+            echo "Found project: $PROJ"
+            xcodebuild \
+              -project "$PROJ" \
+              -scheme "${{ steps.scheme.outputs.scheme }}" \
+              -configuration Release \
+              -sdk iphoneos \
+              -destination 'generic/platform=iOS' \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
+              -derivedDataPath "$DERIVED" \
+              clean build
+          else
+            echo "❌ Không tìm thấy .xcworkspace hoặc .xcodeproj sau khi xcodegen."
+            exit 1
+          fi
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROD_DIR="build/Build/Products/Release-iphoneos"
+          APP_PATH=$(find "$PROD_DIR" -maxdepth 1 -type d -name "*.app" -print -quit)
+          if [ -z "${APP_PATH:-}" ]; then
+            echo "❌ Không thấy .app ở $PROD_DIR"
+            ls -lah "$PROD_DIR" || true
+            exit 1
+          fi
+
+          APP_NAME=$(basename "$APP_PATH" .app)
+          mkdir -p payload/Payload
+          cp -R "$APP_PATH" "payload/Payload/$APP_NAME.app"
+          (cd payload && zip -qry "../${APP_NAME}-unsigned.ipa" Payload)
+          ls -lah "${APP_NAME}-unsigned.ipa"
+
+      - name: Upload artifact (unsigned IPA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa
+          path: "*.ipa"
+          if-no-files-found: error
