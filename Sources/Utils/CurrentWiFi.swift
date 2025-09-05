@@ -1,23 +1,9 @@
 import Foundation
-import NetworkExtension
 
-struct CurrentWiFi {
-    static func ssid() -> String? {
-        // Không có API công khai để lấy SSID trên iOS 16+ nếu không dùng API private.
-        // Trả về nil hoặc sử dụng NEHotspotConfiguration error fallback.
+enum CurrentWiFi {
+    /// Trả về SSID hiện tại (stub để build — nếu có entitlement bạn có thể thay thế nội dung hàm này)
+    static func currentSSID() async -> String? {
+        // TODO: thay bằng API/NEHotspotNetwork nếu có entitlement
         return nil
-    }
-
-    @MainActor
-    static func connect(ssid: String, password: String?, isWEP: Bool = false) async throws {
-        // Chỉ hoạt động khi app KÝ với entitlement HotspotConfiguration
-        var config: NEHotspotConfiguration
-        if let pwd = password, !pwd.isEmpty {
-            config = NEHotspotConfiguration(ssid: ssid, passphrase: pwd, isWEP: isWEP)
-        } else {
-            config = NEHotspotConfiguration(ssid: ssid)
-        }
-        config.joinOnce = false
-        try await NEHotspotConfigurationManager.shared.apply(config)
     }
 }

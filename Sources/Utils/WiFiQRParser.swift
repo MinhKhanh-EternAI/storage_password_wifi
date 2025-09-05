@@ -1,25 +1,64 @@
-import Foundation
+import SwiftUI
+import AVFoundation
 
-enum WiFiQRParser {
-    struct Result { var ssid: String; var password: String; var type: String }
+struct QRScannerView: UIViewControllerRepresentable {
+    typealias Callback = (Result<ParsedWiFiQR, Error>) -> Void
+    let onResult: Callback
 
-    static func parse(_ text: String) -> Result? {
-        // Chuẩn: WIFI:T:WPA;S:SSID;P:password;;
-        guard text.uppercased().hasPrefix("WIFI:") else { return nil }
-        var ssid = "", pass = "", type = "WPA"
+    func makeUIViewController(context: Context) -> ScannerVC {
+        let vc = ScannerVC()
+        vc.onResult = onResult
+        return vc
+    }
 
-        let body = text.dropFirst(5) // after WIFI:
-        for part in body.split(separator: ";") {
-            let kv = part.split(separator: ":", maxSplits: 1).map(String.init)
-            guard kv.count == 2 else { continue }
-            switch kv[0].uppercased() {
-            case "S": ssid = kv[1]
-            case "P": pass = kv[1]
-            case "T": type = kv[1]
-            default: break
+    func updateUIViewController(_ uiViewController: ScannerVC, context: Context) {}
+
+    final class ScannerVC: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+        var onResult: Callback?
+
+        private let session = AVCaptureSession()
+        private var previewLayer: AVCaptureVideoPreviewLayer!
+
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            view.backgroundColor = .black
+
+            guard let device = AVCaptureDevice.default(for: .video),
+                  let input = try? AVCaptureDeviceInput(device: device) else {
+                return
             }
+            session.addInput(input)
+
+            let output = AVCaptureMetadataOutput()
+            session.addOutput(output)
+            output.setMetadataObjectsDelegate(self, queue: .main)
+            output.metadataObjectTypes = [.qr]
+
+            previewLayer = AVCaptureVideoPreviewLayer(session: session)
+            previewLayer.videoGravity = .resizeAspectFill
+            previewLayer.frame = view.bounds
+            view.layer.addSublayer(previewLayer)
+
+            session.startRunning()
         }
-        guard !ssid.isEmpty else { return nil }
-        return .init(ssid: ssid, password: pass, type: type)
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            previewLayer?.frame = view.bounds
+        }
+
+        func metadataOutput(_ output: AVCaptureMetadataOutput,
+                            didOutput metadataObjects: [AVMetadataObject],
+                            from connection: AVCaptureConnection) {
+            guard let obj = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+                  let str = obj.stringValue else { return }
+            session.stopRunning()
+            if let parsed = WiFiQRParser.parse(str) {
+                onResult?(.success(parsed))
+            } else {
+                onResult?(.failure(NSError(domain: "scan", code: 1)))
+            }
+            dismiss(animated: true)
+        }
     }
 }
