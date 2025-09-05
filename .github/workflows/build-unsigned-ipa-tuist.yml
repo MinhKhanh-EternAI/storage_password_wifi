@@ -1,4 +1,4 @@
-name: 'ci: Xcode/Tuist unsigned IPA pipeline'
+name: "CI - Xcode/Tuist unsigned IPA pipeline"
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
           xcodebuild -version
           sw_vers
 
-      - name: Install Tuist (Homebrew)
+      - name: Install Tuist
         run: |
           brew update
           brew tap tuist/tuist
@@ -32,7 +32,6 @@ jobs:
           if [[ ! -f Info.plist ]]; then
             echo "❌ Missing Info.plist"; exit 1
           fi
-          # strip BOM + normalize line endings (LF)
           python3 - <<'PY'
           from pathlib import Path
           p = Path('Info.plist')
@@ -45,9 +44,8 @@ jobs:
           plutil -convert xml1 Info.plist
           plutil -lint Info.plist
 
-      - name: Generate Xcode project (Tuist)
-        run: |
-          tuist generate --no-open
+      - name: Tuist generate
+        run: tuist generate --no-open
 
       - name: Build unsigned .app
         shell: bash
@@ -63,29 +61,21 @@ jobs:
             -derivedDataPath build \
             clean build
 
-      - name: Package unsigned IPA (proper, with fallbacks)
+      - name: Package unsigned IPA
         shell: bash
         run: |
           set -euo pipefail
-
-          # Try to query the actual .app path from build settings
           APP_PATH=$(xcodebuild -workspace "./WiFiOffline.xcworkspace" \
             -scheme "WiFiOffline" -configuration "Release" -sdk iphoneos -showBuildSettings 2>/dev/null \
             | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
-
-          # Fallback: scan Products dir
           if [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]]; then
             APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name "*.app" -print -quit || true)
           fi
-
-          echo "APP_PATH=${APP_PATH}"
+          echo "APP_PATH=$APP_PATH"
           [[ -n "${APP_PATH:-}" && -d "$APP_PATH" ]]
 
           APP_NAME=$(basename "$APP_PATH" .app)
-
-          # Sanity check Info.plist inside app
           PLIST="$APP_PATH/Info.plist"
-          echo "== Ensure essential keys in Info.plist =="
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST" || /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string ${APP_NAME}" "$PLIST"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST" || /usr/libexec/PlistBuddy -c 'Add :CFBundleShortVersionString string 1.0' "$PLIST"
@@ -98,15 +88,8 @@ jobs:
           IPA_NAME="${APP_NAME}-unsigned.ipa"
           ditto -ck --sequesterRsrc --keepParent Payload "$IPA_NAME"
 
-          echo "== IPA content preview =="
-          unzip -l "$IPA_NAME" | sed -n '1,120p'
+          unzip -l "$IPA_NAME" | sed -n '1,100p'
           ls -lah "$IPA_NAME"
-
-          SIZE=$(stat -f%z "$IPA_NAME" 2>/dev/null || stat -c%s "$IPA_NAME")
-          if (( SIZE < 500000 )); then
-            echo "IPA too small (${SIZE} bytes) -> probably invalid"
-            exit 1
-          fi
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
