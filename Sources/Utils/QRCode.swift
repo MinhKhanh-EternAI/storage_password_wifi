@@ -1,31 +1,29 @@
-import SwiftUI
-import CoreImage.CIFilterBuiltins
+import Foundation
+import CoreImage
+import UIKit
 
-struct QRCodeView: View {
-    let text: String
-    var body: some View {
-        if let img = QRCode.make(from: text) {
-            Image(uiImage: img)
-                .interpolation(.none)
-                .resizable()
-                .scaledToFit()
-        } else {
-            Color.secondary.opacity(0.2)
-        }
+enum QRBuilder {
+    @MainActor
+    static func make(text: String, size: CGFloat = 240) -> UIImage? {
+        guard let data = text.data(using: .utf8),
+              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+
+        guard let output = filter.outputImage else { return nil }
+        let scale = size / output.extent.size.width
+        let transformed = output.transformed(by: .init(scaleX: scale, y: scale))
+        return UIImage(ciImage: transformed)
     }
-}
 
-enum QRCode {
-    static let context = CIContext()
-    static let filter = CIFilter.qrCodeGenerator()
-
-    static func make(from string: String) -> UIImage? {
-        filter.setValue(Data(string.utf8), forKey: "inputMessage")
-        guard let out = filter.outputImage else { return nil }
-        let scaled = out.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-        if let cg = context.createCGImage(scaled, from: scaled.extent) {
-            return UIImage(cgImage: cg)
+    static func wifiString(ssid: String, password: String, security: WiFiSecurity) -> String {
+        let t: String
+        switch security {
+        case .none: t = "nopass"
+        case .wep: t = "WEP"
+        case .wpa, .wpa2wpa3, .wpa3, .wpaEnterprise, .wpa2Enterprise, .wpa3Enterprise:
+            t = "WPA"
         }
-        return nil
+        return "WIFI:T:\(t);S:\(ssid);P:\(password);;"
     }
 }

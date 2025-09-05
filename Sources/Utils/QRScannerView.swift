@@ -2,51 +2,42 @@ import SwiftUI
 import AVFoundation
 
 struct QRScannerView: UIViewControllerRepresentable {
-    var onResult: (String) -> Void
+    final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
+        var parent: QRScannerView
+        init(_ parent: QRScannerView) { self.parent = parent }
 
-    func makeUIViewController(context: Context) -> ScannerVC {
-        let vc = ScannerVC()
-        vc.onResult = onResult
+        func metadataOutput(_ output: AVCaptureMetadataOutput,
+                            didOutput metadataObjects: [AVMetadataObject],
+                            from connection: AVCaptureConnection) {
+            guard let m = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+                  m.type == .qr, let str = m.stringValue else { return }
+            parent.onCode(str)
+        }
+    }
+
+    var onCode: (String) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let vc = UIViewController()
+        let session = AVCaptureSession()
+        guard let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device) else { return vc }
+        let output = AVCaptureMetadataOutput()
+        if session.canAddInput(input) { session.addInput(input) }
+        if session.canAddOutput(output) {
+            session.addOutput(output)
+            output.setMetadataObjectsDelegate(context.coordinator, queue: .main)
+            output.metadataObjectTypes = [.qr]
+        }
+        let preview = AVCaptureVideoPreviewLayer(session: session)
+        preview.videoGravity = .resizeAspectFill
+        preview.frame = vc.view.layer.bounds
+        vc.view.layer.addSublayer(preview)
+        session.startRunning()
         return vc
     }
-    func updateUIViewController(_ uiViewController: ScannerVC, context: Context) {}
-}
 
-final class ScannerVC: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
-    var onResult: ((String) -> Void)?
-
-    private let session = AVCaptureSession()
-    private let preview = AVCaptureVideoPreviewLayer()
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        guard let device = AVCaptureDevice.default(for: .video),
-              let input = try? AVCaptureDeviceInput(device: device) else { return }
-        session.addInput(input)
-
-        let output = AVCaptureMetadataOutput()
-        session.addOutput(output)
-        output.setMetadataObjectsDelegate(self, queue: .main)
-        output.metadataObjectTypes = [.qr]
-
-        preview.session = session
-        preview.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(preview)
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        preview.frame = view.bounds
-        if !session.isRunning { session.startRunning() }
-    }
-
-    func metadataOutput(_ output: AVCaptureMetadataOutput,
-                        didOutput metadataObjects: [AVMetadataObject],
-                        from connection: AVCaptureConnection) {
-        guard let obj = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
-              let str = obj.stringValue else { return }
-        session.stopRunning()
-        dismiss(animated: true) { self.onResult?(str) }
-    }
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }

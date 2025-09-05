@@ -1,52 +1,30 @@
 import Foundation
 
-enum WiFiSecurity: String, Codable, CaseIterable, Equatable {
-    case none, wep, wpa, wpa2Wpa3, wpa3, wpaEnterprise, wpa2Enterprise, wpa3Enterprise
+enum WiFiSecurity: String, CaseIterable, Codable, Identifiable {
+    case none = "Không có"
+    case wep = "WEP"
+    case wpa = "WPA"
+    case wpa2wpa3 = "WPA2/WPA3"
+    case wpa3 = "WPA3"
+    case wpaEnterprise = "WPA Doanh nghiệp"
+    case wpa2Enterprise = "WPA2 Doanh nghiệp"
+    case wpa3Enterprise = "WPA3 Doanh nghiệp"
 
-    var display: String {
-        switch self {
-        case .none: return "Không có"
-        case .wep: return "WEP"
-        case .wpa: return "WPA"
-        case .wpa2Wpa3: return "WPA2/WPA3"
-        case .wpa3: return "WPA3"
-        case .wpaEnterprise: return "WPA Doanh nghiệp"
-        case .wpa2Enterprise: return "WPA2 Doanh nghiệp"
-        case .wpa3Enterprise: return "WPA3 Doanh nghiệp"
-        }
-    }
-
-    var qrType: String {
-        switch self {
-        case .none: return "nopass"
-        case .wep: return "WEP"
-        default: return "WPA"
-        }
-    }
+    var id: String { rawValue }
 }
 
-enum PrivateAddress: String, Codable, CaseIterable, Equatable {
-    case off, fixed, rotating
-    var display: String {
-        switch self {
-        case .off: return "Tắt"
-        case .fixed: return "Cố định"
-        case .rotating: return "Luân chuyển"
-        }
-    }
+enum PrivateAddressing: String, CaseIterable, Codable, Identifiable {
+    case off = "Tắt"
+    case fixed = "Cố định"
+    case rotating = "Luân chuyển"
+
+    var id: String { rawValue }
 }
 
 struct WiFiNetwork: Identifiable, Codable, Equatable {
     var id: UUID = .init()
-    var ssid: String = ""
-    var password: String = ""
-    var security: WiFiSecurity = .wpa2Wpa3
-    var privateAddress: PrivateAddress = .off
-
-    var wifiQRString: String {
-        let escSsid = ssid.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: ";", with: "\\;")
-        let escPass = password.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: ";", with: "\\;")
-        let passPart = security == .none ? "" : "P:\(escPass);"
-        return "WIFI:T:\(security.qrType);S:\(escSsid);\(passPart)H:false;;"
-    }
+    var ssid: String
+    var password: String
+    var security: WiFiSecurity = .wpa2wpa3
+    var privateAddressing: PrivateAddressing = .off
 }

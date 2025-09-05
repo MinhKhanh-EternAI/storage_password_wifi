@@ -2,29 +2,37 @@ import ProjectDescription
 
 let project = Project(
     name: "WiFiOffline",
-    organizationName: "MinhKhanh",
-    packages: [],
+    options: .options(
+        automaticSchemesOptions: .disabled
+    ),
     settings: .settings(),
     targets: [
         Target(
             name: "WiFiOffline",
-            destinations: [.iPhone],
+            destinations: .iOS,                 // iPhone/iPad nếu muốn: [.iPhone, .iPad]
             product: .app,
             bundleId: "com.example.wifioffline",
             deploymentTargets: .iOS("16.0"),
-            infoPlist: "Info.plist",
+            infoPlist: .file(path: "Info.plist"),
             sources: ["Sources/**"],
-            resources: ["Resources/**"],
-            entitlements: "WiFiOffline.entitlements",
-            dependencies: []
+            resources: [
+                "Assets.xcassets/**",
+                "README.md"
+            ],
+            entitlements: .file(path: "WiFiOffline.entitlements"),
+            settings: .settings(base: [
+                "SWIFT_VERSION": "5.0",
+                "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+                "INFOPLIST_FILE": "Info.plist",
+                "CODE_SIGNING_ALLOWED": "NO"
+            ])
         )
     ],
     schemes: [
         Scheme(
             name: "WiFiOffline",
-            shared: true,
-            buildAction: BuildAction(targets: ["WiFiOffline"]),
-            runAction: RunAction(configuration: .release)
+            buildAction: .buildAction(targets: ["WiFiOffline"]),
+            runAction: .runAction(configuration: .release)
         )
     ]
 )

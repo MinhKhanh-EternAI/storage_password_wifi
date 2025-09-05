@@ -1,45 +1,25 @@
 import Foundation
 
 enum WiFiQRParser {
-    static func parse(_ text: String) -> WiFiNetwork? {
-        guard text.hasPrefix("WIFI:") else { return nil }
-        let body = text.dropFirst(5)
+    struct Result { var ssid: String; var password: String; var type: String }
 
-        var dict: [String:String] = [:]
-        var key = ""; var value = ""
-        var readingKey = true; var escaping = false
+    static func parse(_ text: String) -> Result? {
+        // Chuẩn: WIFI:T:WPA;S:SSID;P:password;;
+        guard text.uppercased().hasPrefix("WIFI:") else { return nil }
+        var ssid = "", pass = "", type = "WPA"
 
-        func flush() {
-            if !key.isEmpty { dict[key] = value }
-            key = ""; value = ""
-        }
-
-        for ch in body {
-            if escaping {
-                if readingKey { key.append(ch) } else { value.append(ch) }
-                escaping = false; continue
-            }
-            switch ch {
-            case "\\": escaping = true
-            case ":" where readingKey: readingKey = false
-            case ";" where !readingKey: flush(); readingKey = true
-            default:
-                if readingKey { key.append(ch) } else { value.append(ch) }
-            }
-        }
-        flush()
-
-        var wifi = WiFiNetwork()
-        wifi.ssid = dict["S"] ?? ""
-        wifi.password = dict["P"] ?? ""
-        if let t = dict["T"]?.uppercased() {
-            switch t {
-            case "WEP": wifi.security = .wep
-            case "WPA": wifi.security = .wpa2Wpa3
-            case "NOPASS": wifi.security = .none
+        let body = text.dropFirst(5) // after WIFI:
+        for part in body.split(separator: ";") {
+            let kv = part.split(separator: ":", maxSplits: 1).map(String.init)
+            guard kv.count == 2 else { continue }
+            switch kv[0].uppercased() {
+            case "S": ssid = kv[1]
+            case "P": pass = kv[1]
+            case "T": type = kv[1]
             default: break
             }
         }
-        return wifi.ssid.isEmpty ? nil : wifi
+        guard !ssid.isEmpty else { return nil }
+        return .init(ssid: ssid, password: pass, type: type)
     }
 }

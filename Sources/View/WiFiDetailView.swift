@@ -1,106 +1,106 @@
 import SwiftUI
 
 struct WiFiDetailView: View {
-    @EnvironmentObject var store: WiFiStore
     @Environment(\.dismiss) private var dismiss
-
-    @State var network: WiFiNetwork
-    @State private var showEdit = false
-    @State private var copied = false
+    @EnvironmentObject private var store: WiFiStore
+    @State var item: WiFiNetwork
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                QRCodeView(text: network.wifiQRString)
-                    .frame(width: 180, height: 180)
-                    .padding(12)
-                    .background(Color(.secondarySystemBackground), in: Rectangle())
+            VStack(alignment: .leading, spacing: 16) {
 
-                infoCard
+                // QR nhỏ gọn: chỉ tên & mật khẩu
+                if !item.password.isEmpty {
+                    VStack(spacing: 8) {
+                        if let img = QRBuilder.make(
+                            text: QRBuilder.wifiString(ssid: item.ssid, password: item.password, security: item.security),
+                            size: 160
+                        ) {
+                            Image(uiImage: img)
+                                .interpolation(.none)
+                                .resizable()
+                                .frame(width: 160, height: 160)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        Text(item.ssid).font(.headline)
+                        Text(item.password).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+
+                Group {
+                    HStack { Text("Tên mạng"); Spacer(); Text(item.ssid).foregroundStyle(.secondary) }
+                    Divider()
+                    HStack {
+                        Text("Mật khẩu"); Spacer()
+                        Button {
+                            UIPasteboard.general.string = item.password
+                        } label: {
+                            Label("Sao chép", systemImage: "doc.on.doc")
+                        }.buttonStyle(.bordered)
+                    }
+                    Divider()
+                    HStack { Text("Bảo mật"); Spacer(); Text(item.security.rawValue).foregroundStyle(.secondary) }
+                    Divider()
+                    HStack { Text("Đ/c Wi-Fi bảo mật"); Spacer(); Text(item.privateAddressing.rawValue).foregroundStyle(.secondary) }
+                }
+                .padding()
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
             }
-            .padding(16)
+            .padding()
         }
-        .navigationTitle(network.ssid)
+        .navigationTitle(item.ssid)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
-                    Button {
-                        UIPasteboard.general.string = network.password
-                        copied = true
-                    } label: { Label("Sao chép mật khẩu", systemImage: "doc.on.doc") }
-
-                    Button {
-                        showEdit = true
-                    } label: { Label("Sửa", systemImage: "pencil") }
-
-                    Button(role: .destructive) {
-                        store.delete(network); dismiss()
-                    } label: { Label("Xóa", systemImage: "trash") }
-                } label: { Image(systemName: "ellipsis.circle") }
-            }
-        }
-        .sheet(isPresented: $showEdit) {
-            WiFiFormView(mode: .edit(network)).environmentObject(store)
-        }
-        .toast(isPresented: $copied, text: "Đã sao chép mật khẩu")
-    }
-
-    private var infoCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            LabeledValue("Tên mạng", network.ssid)
-            LabeledValue("Mật khẩu", masked: network.password) {
-                UIPasteboard.general.string = network.password
-                copied = true
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-}
-
-private struct LabeledValue: View {
-    let title: String
-    var value: String? = nil
-    var maskedValue: String? = nil
-    var onLongPress: (() -> Void)?
-
-    init(_ title: String, _ value: String) { self.title = title; self.value = value }
-    init(_ title: String, masked: String, onLongPress: (() -> Void)? = nil) {
-        self.title = title; self.maskedValue = masked; self.onLongPress = onLongPress
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.subheadline).foregroundStyle(.secondary)
-            HStack {
-                if let value { Text(value).font(.headline) }
-                if let maskedValue {
-                    Text(String(repeating: "•", count: max(4, maskedValue.count)))
-                        .font(.headline)
-                        .onLongPressGesture(minimumDuration: 0.4) { onLongPress?() }
-                }
-                Spacer()
-            }
-        }
-    }
-}
-
-private extension View {
-    func toast(isPresented: Binding<Bool>, text: String) -> some View {
-        ZStack {
-            self
-            if isPresented.wrappedValue {
-                Text(text).padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .transition(.opacity)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
-                            withAnimation { isPresented.wrappedValue = false }
-                        }
+                    Button("Sửa", systemImage: "pencil") {
+                        presentEdit()
                     }
+                    Button("Chia sẻ QR", systemImage: "qrcode") {
+                        shareQR()
+                    }
+                    Button(role: .destructive, action: deleteMe) {
+                        Label("Xoá", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
             }
         }
-        .animation(.easeInOut, value: isPresented.wrappedValue)
+    }
+
+    private func presentEdit() {
+        let sheet = WiFiFormView(item: item) { updated in
+            item = updated
+            store.update(updated)
+        }
+        let hosting = UIHostingController(rootView: sheet.environmentObject(store))
+        hosting.modalPresentationStyle = .formSheet
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first?
+            .rootViewController?
+            .present(hosting, animated: true)
+    }
+
+    private func shareQR() {
+        guard !item.password.isEmpty else { return }
+        let str = QRBuilder.wifiString(ssid: item.ssid, password: item.password, security: item.security)
+        let av = UIActivityViewController(activityItems: [str], applicationActivities: nil)
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first?
+            .rootViewController?
+            .present(av, animated: true)
+    }
+
+    private func deleteMe() {
+        if let idx = store.items.firstIndex(where: { $0.id == item.id }) {
+            store.items.remove(at: idx)
+            store.save()
+            dismiss()
+        }
     }
 }

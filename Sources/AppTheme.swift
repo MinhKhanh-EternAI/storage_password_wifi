@@ -1,6 +1,21 @@
 import SwiftUI
 
-final class AppTheme: ObservableObject {
-    @AppStorage("theme") var theme: Int = 0 // 0: Tự động, 1: Sáng, 2: Tối
-    var colorScheme: ColorScheme? { theme == 0 ? nil : (theme == 1 ? .light : .dark) }
+struct AppTheme {
+    static let corner: CGFloat = 16
+
+    static func card() -> some View {
+        RoundedRectangle(cornerRadius: corner, style: .continuous)
+            .fill(Color(.secondarySystemBackground))
+    }
+}
+
+extension View {
+    func sectionCard() -> some View {
+        self
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.corner, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
+    }
 }
