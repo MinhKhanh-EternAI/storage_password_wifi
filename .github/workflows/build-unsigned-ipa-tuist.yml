@@ -27,7 +27,7 @@ jobs:
           brew install --formula tuist
           tuist version
 
-      # === FIX CRLF/BOM & validate Info.plist trước khi build ===
+      # 1) Chuẩn hoá & kiểm tra Info.plist (tránh lỗi do BOM/CRLF khi sửa trên Windows)
       - name: Normalize & validate Info.plist
         shell: bash
         run: |
@@ -36,23 +36,22 @@ jobs:
             echo "❌ Missing Info.plist at repo root"; exit 1
           fi
 
-          # Remove CRLF (Windows) -> LF, remove UTF-8 BOM nếu có
+          # Strip UTF-8 BOM + chuyển CRLF -> LF
           python3 - <<'PY'
 from pathlib import Path
 p = Path('Info.plist')
 raw = p.read_bytes()
-# strip UTF-8 BOM nếu có
 if raw.startswith(b'\xef\xbb\xbf'):
     raw = raw[3:]
-# đổi CRLF -> LF
 raw = raw.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
 p.write_bytes(raw)
 PY
 
-          # convert về xml1 và lint
-          plutil -convert xml1 Info.plist || { echo "❌ convert failed"; cat Info.plist; exit 1; }
+          # Convert & lint
+          plutil -convert xml1 Info.plist
           plutil -lint Info.plist
 
+      # 2) Generate project bằng Tuist
       - name: Generate Xcode project (Tuist)
         run: tuist generate --no-open
 
@@ -64,6 +63,7 @@ PY
           find . -maxdepth 2 -type d -name "*.xcworkspace" -print
           find . -maxdepth 2 -type d -name "*.xcodeproj" -print
 
+      # 3) Build iphoneos (unsigned) — tự phát hiện workspace/project
       - name: Build unsigned .app (iphoneos)
         shell: bash
         run: |
@@ -76,6 +76,7 @@ PY
           projects=( ./*.xcodeproj )
 
           if (( ${#workspaces[@]} > 0 )); then
+            echo "Found workspace: ${workspaces[0]}"
             xcodebuild -workspace "${workspaces[0]}" \
               -scheme "$SCHEME" \
               -configuration Release \
@@ -85,6 +86,7 @@ PY
               -derivedDataPath "$DERIVED" \
               clean build
           elif (( ${#projects[@]} > 0 )); then
+            echo "Found project: ${projects[0]}"
             xcodebuild -project "${projects[0]}" \
               -scheme "$SCHEME" \
               -configuration Release \
@@ -97,7 +99,7 @@ PY
             echo "❌ No .xcworkspace or .xcodeproj found"; exit 1
           fi
 
-      # === Package IPA đúng chuẩn bằng ditto + verify Info.plist trong .app ===
+      # 4) Đóng gói IPA chuẩn bằng ditto + verify Info.plist trong .app
       - name: Package unsigned IPA (proper)
         shell: bash
         run: |
@@ -105,6 +107,7 @@ PY
           SCHEME="WiFiOffline"
           CONFIG="Release"
 
+          # Lấy APP_PATH chính xác từ build settings
           APP_PATH=$(xcodebuild -showBuildSettings \
             -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos 2>/dev/null \
             | awk -F' = ' '
@@ -120,15 +123,20 @@ PY
           mkdir -p Payload
           cp -R "$APP_PATH" "Payload/$APP_NAME.app"
 
+          # Đọc Info.plist trong .app — bắt buộc hiện ra các key này
           PLIST="Payload/$APP_NAME.app/Info.plist"
           echo "== Info.plist in .app =="
-          plutil -p "$PLIST" | head -n 50 || true
-          echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")"
-          echo "CFBundleExecutable: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST")"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST" || true
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST" || true
 
+          # Đóng gói IPA chính thống
           IPA_NAME="${APP_NAME}-unsigned.ipa"
           ditto -ck --sequesterRsrc --keepParent Payload "$IPA_NAME"
-          unzip -l "$IPA_NAME" | head -n 40
+
+          echo "== IPA content preview =="
+          unzip -l "$IPA_NAME" | head -n 60
           ls -lah "$IPA_NAME"
 
       - name: Upload artifact (unsigned IPA)

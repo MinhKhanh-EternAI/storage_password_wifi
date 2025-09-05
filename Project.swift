@@ -1,4 +1,4 @@
-// Project.swift — Tuist 4 DSL
+// Project.swift — Tuist 4
 import ProjectDescription
 
 let project = Project(
@@ -8,7 +8,7 @@ let project = Project(
             name: "WiFiOffline",
             destinations: [.iPhone],            // hoặc .iOS nếu hỗ trợ iPad
             product: .app,
-            bundleId: "com.example.wifioffline", // ĐỔI thành bundleId của bạn nếu cần
+            bundleId: "com.example.wifioffline", // ĐỔI cho khớp bundle của bạn
             deploymentTargets: .iOS("14.0"),
             infoPlist: .file(path: "Info.plist"),
             sources: ["Sources/**"],
