@@ -1,43 +1,26 @@
-      - name: Package unsigned IPA (proper)
-        shell: bash
-        run: |
-          set -euo pipefail
-          SCHEME="${{ steps.scheme.outputs.scheme }}"
-          CONFIG="Release"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.example.wifioffline</string>
 
-          # Lấy đường dẫn .app chính xác từ build settings
-          APP_PATH=$(xcodebuild -showBuildSettings \
-            -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos 2>/dev/null \
-            | awk -F' = ' '
-                /TARGET_BUILD_DIR/ { t=$2 }
-                /WRAPPER_NAME/     { w=$2 }
-                END { if (t && w) print t "/" w }'
-          )
+  <key>CFBundleName</key>
+  <string>WiFiOffline</string>
 
-          if [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]]; then
-            echo "❌ Không tìm thấy .app từ showBuildSettings"; exit 1
-          fi
+  <key>CFBundleDisplayName</key>
+  <string>WiFiOffline</string>
 
-          APP_NAME=$(basename "$APP_PATH" .app)
-          echo "✅ APP_PATH = $APP_PATH"
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
 
-          rm -rf Payload *.ipa
-          mkdir -p Payload
-          # copy app đầy đủ (giữ resource/metadata)
-          cp -R "$APP_PATH" "Payload/$APP_NAME.app"
+  <key>CFBundleVersion</key>
+  <string>1</string>
 
-          echo "== Kiểm tra Info.plist trong app =="
-          PLIST="Payload/$APP_NAME.app/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST" || true
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST" || true
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$PLIST"
+  <key>UILaunchScreen</key>
+  <dict/>
 
-          echo "== Đóng gói IPA bằng ditto =="
-          IPA_NAME="${APP_NAME}-unsigned.ipa"
-          # dùng ditto để đóng gói chuẩn IPA
-          ditto -ck --sequesterRsrc --keepParent Payload "$IPA_NAME"
-
-          echo "== Liệt kê nội dung IPA =="
-          unzip -l "$IPA_NAME" | sed -n '1,100p'
-          ls -lah "$IPA_NAME"
+  <key>LSRequiresIPhoneOS</key>
+  <true/>
+</dict>
+</plist>
