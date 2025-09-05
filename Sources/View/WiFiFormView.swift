@@ -2,40 +2,48 @@ import SwiftUI
 
 struct WiFiFormView: View {
     @Environment(\.dismiss) private var dismiss
+
     @State var item: WiFiNetwork
-    var onSubmit: (WiFiNetwork) -> Void = { _ in }
+    var onSubmit: (WiFiNetwork) -> Void
 
     var body: some View {
         Form {
             Section("Thông tin cơ bản") {
-                TextField("SSID", text: $item.ssid)
+                TextField("Tên mạng", text: $item.ssid)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+
                 SecureField("Mật khẩu", text: $item.password)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+
                 Picker("Bảo mật", selection: $item.security) {
-                    ForEach(WiFiNetwork.Security.allCases) { s in
-                        Text(s.rawValue).tag(s)
+                    ForEach(WiFiNetwork.Security.allCases) { sec in
+                        HStack {
+                            Text(sec.rawValue)
+                            if sec == item.security { Spacer(); Image(systemName: "checkmark") }
+                        }.tag(sec)
+                    }
+                }
+
+                Picker("Địa chỉ Wi-Fi bảo mật", selection: $item.privateAddress) {
+                    ForEach(WiFiNetwork.PrivateAddressMode.allCases) { mode in
+                        HStack {
+                            Text(mode.rawValue)
+                            if mode == item.privateAddress { Spacer(); Image(systemName: "checkmark") }
+                        }.tag(mode)
                     }
                 }
             }
-            Section("Ghi chú") {
-                TextField("Ghi chú (tuỳ chọn)", text: Binding(
-                    get: { item.note ?? "" },
-                    set: { item.note = $0.isEmpty ? nil : $0 }
-                ), axis: .vertical)
-            }
         }
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .bottomBar) {
-                Button {
+            ToolbarItem(placement: .topBarLeading) { Button("Huỷ") { dismiss() } }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Lưu") {
                     onSubmit(item)
-                } label: {
-                    Label("Lưu", systemImage: "checkmark.circle.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(item.ssid.trimmingCharacters(in: .whitespaces).isEmpty)
+                    dismiss()
+                }.bold()
             }
         }
     }

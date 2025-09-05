@@ -6,44 +6,33 @@ struct QRCodeView: View {
     let size: CGFloat
 
     var body: some View {
-        Image(uiImage: UIImage.qr(from: text, size: size))
-            .interpolation(.none)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(radius: 6)
+        ZStack {
+            // Khung vuông
+            Rectangle()
+                .strokeBorder(style: StrokeStyle(lineWidth: 2))
+                .foregroundStyle(.primary)
+                .frame(width: size + 20, height: size + 20)
+
+            Image(uiImage: UIImage.qr(from: text, size: Int(size)))
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+        }
+        .accessibilityLabel("Mã QR Wi-Fi")
     }
 }
 
-/// Hàm dựng ảnh QR liên quan UI ⇒ chạy trên MainActor để an toàn với Swift Concurrency.
-@MainActor
 extension UIImage {
-    /// Tạo ảnh QR bằng CoreImage và render đúng scale với ImageRenderer (iOS 16+).
-    static func qr(from text: String, size: CGFloat) -> UIImage {
+    static func qr(from string: String, size: Int) -> UIImage {
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(text.utf8)
-        filter.correctionLevel = "M"  // L/M/Q/H
-
-        // CI tạo ảnh nhỏ; phóng to bằng transform để nét.
-        let base = filter.outputImage ?? CIImage(color: .white)
-        let scale = max(size / 128.0, 1.0)
-        let transformed = base.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-
-        guard let cg = context.createCGImage(transformed, from: transformed.extent) else {
+        filter.setValue(string.data(using: .utf8), forKey: "inputMessage")
+        let transform = CGAffineTransform(scaleX: CGFloat(size)/10, y: CGFloat(size)/10)
+        guard let output = filter.outputImage?.transformed(by: transform),
+              let cg = context.createCGImage(output, from: output.extent) else {
             return UIImage()
         }
-        let ciImage = UIImage(cgImage: cg)
-
-        // Render qua SwiftUI để đảm bảo scale màn hình.
-        let view = Image(uiImage: ciImage)
-            .interpolation(.none)
-            .resizable()
-            .frame(width: size, height: size)
-
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = UIScreen.main.scale
-        return renderer.uiImage ?? ciImage
+        return UIImage(cgImage: cg)
     }
 }

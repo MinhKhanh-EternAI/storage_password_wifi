@@ -10,13 +10,7 @@ struct WiFiOfflineApp: App {
             ContentView()
                 .environmentObject(store)
                 .environmentObject(theme)
-                .preferredColorScheme({
-                    switch theme.appearance {
-                    case .system: return nil
-                    case .light:  return .light
-                    case .dark:   return .dark
-                    }
-                }())
+                .preferredColorScheme(theme.appearance.colorScheme)
         }
     }
 }

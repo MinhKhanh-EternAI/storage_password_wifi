@@ -1,21 +1,16 @@
 import Foundation
 
-/// Parse QR theo chuẩn: WIFI:T:WPA;S:ssid;P:pass;;
 enum WiFiQRParser {
     static func parse(_ text: String) -> WiFiNetwork? {
         guard text.uppercased().hasPrefix("WIFI:") else { return nil }
         let body = String(text.dropFirst("WIFI:".count))
 
         var fields: [String: String] = [:]
-        var key = ""
-        var value = ""
-        var readingKey = true
-        var esc = false
+        var key = "", value = ""
+        var readingKey = true, esc = false
 
         func putKV() {
-            if !key.isEmpty {
-                fields[key] = value
-            }
+            if !key.isEmpty { fields[key] = value }
             key = ""; value = ""; readingKey = true
         }
 
@@ -43,9 +38,9 @@ enum WiFiQRParser {
         switch t {
         case nil, .some(""), .some("NOPASS"): sec = .open
         case .some("WEP"): sec = .wep
-        case .some("WPA"), .some("WPA2"): sec = .wpa2
+        case .some("WPA"), .some("WPA2"): sec = .wpa2wpa3
         case .some("WPA3"): sec = .wpa3
-        default: sec = .wpa2
+        default: sec = .wpa2wpa3
         }
         return WiFiNetwork(ssid: ssid, password: p ?? "", security: sec)
     }
