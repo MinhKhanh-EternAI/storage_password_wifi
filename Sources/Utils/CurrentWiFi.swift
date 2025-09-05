@@ -1,70 +1,33 @@
 import Foundation
-import CoreLocation
-import SystemConfiguration.CaptiveNetwork
 import NetworkExtension
+import SystemConfiguration.CaptiveNetwork
 
-final class CurrentWiFi: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published var currentSSID: String? = nil
-    private let location = CLLocationManager()
-
-    override init() {
-        super.init()
-        location.delegate = self
-    }
-
-    func requestAndFetch() {
-        switch location.authorizationStatus {
-        case .notDetermined: location.requestWhenInUseAuthorization()
-        case .authorizedWhenInUse, .authorizedAlways: fetchSSID()
-        default: currentSSID = nil
-        }
-    }
-
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
-            fetchSSID()
-        } else { currentSSID = nil }
-    }
-
-    private func fetchSSID() {
-        if #available(iOS 14.0, *) {
-            NEHotspotNetwork.fetchCurrent { [weak self] net in
-                if let s = net?.ssid, !s.isEmpty {
-                    DispatchQueue.main.async { self?.currentSSID = s }
-                } else { self?.fetchWithCaptive() }
-            }
-        } else { fetchWithCaptive() }
-    }
-
-    private func fetchWithCaptive() {
-        guard let ifs = CNCopySupportedInterfaces() as? [String] else {
-            DispatchQueue.main.async { self.currentSSID = nil }; return
-        }
-        for ifname in ifs {
+enum CurrentWiFi {
+    static func currentSSID() async -> String? {
+        // CNCopy... có thể trả nil trên iOS mới; dùng best-effort
+        guard let interfaces = CNCopySupportedInterfaces() as? [String] else { return nil }
+        for ifname in interfaces {
             if let dict = CNCopyCurrentNetworkInfo(ifname as CFString) as? [String: Any],
-               let s = dict[kCNNetworkInfoKeySSID as String] as? String, !s.isEmpty {
-                DispatchQueue.main.async { self.currentSSID = s }; return
+               let ssid = dict[kCNNetworkInfoKeySSID as String] as? String {
+                return ssid
             }
         }
-        DispatchQueue.main.async { self.currentSSID = nil }
+        return nil
     }
 
-    func connect(ssid: String, password: String?, security: WiFiNetwork.Security, joinOnce: Bool = false, completion: @escaping (Error?) -> Void) {
-        // Enterprise không hỗ trợ qua API public
-        if security.isEnterprise {
-            completion(NSError(domain: "WiFi", code: -10, userInfo: [NSLocalizedDescriptionKey: "Không hỗ trợ kết nối mạng Doanh nghiệp."]))
-            return
-        }
+    static func connectIfSaved(store: WiFiStore, ssid: String?) async {
+        guard let ssid, let net = store.networks.first(where: { $0.ssid == ssid }) else { return }
+        await connect(net)
+    }
+
+    static func connect(_ net: WiFiNetwork) async {
         let conf: NEHotspotConfiguration
-        switch security.configFlavor {
-        case .open:
-            conf = NEHotspotConfiguration(ssid: ssid)
-        case .wep:
-            conf = NEHotspotConfiguration(ssid: ssid, passphrase: password ?? "", isWEP: true)
-        case .wpa:
-            conf = NEHotspotConfiguration(ssid: ssid, passphrase: password ?? "", isWEP: false)
+        if net.security == .none {
+            conf = NEHotspotConfiguration(ssid: net.ssid)
+        } else {
+            conf = NEHotspotConfiguration(ssid: net.ssid, passphrase: net.password, isWEP: net.security == .wep)
         }
-        conf.joinOnce = joinOnce
-        NEHotspotConfigurationManager.shared.apply(conf, completionHandler: completion)
+        conf.joinOnce = false
+        try? await NEHotspotConfigurationManager.shared.apply(conf)
     }
 }

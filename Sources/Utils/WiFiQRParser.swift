@@ -2,46 +2,44 @@ import Foundation
 
 enum WiFiQRParser {
     static func parse(_ text: String) -> WiFiNetwork? {
-        guard text.uppercased().hasPrefix("WIFI:") else { return nil }
-        let body = String(text.dropFirst("WIFI:".count))
+        guard text.hasPrefix("WIFI:") else { return nil }
+        let body = text.dropFirst(5)
 
-        var fields: [String: String] = [:]
-        var key = "", value = ""
-        var readingKey = true, esc = false
+        var dict: [String:String] = [:]
+        var key = ""; var value = ""
+        var readingKey = true; var escaping = false
 
-        func putKV() {
-            if !key.isEmpty { fields[key] = value }
-            key = ""; value = ""; readingKey = true
+        func flush() {
+            if !key.isEmpty { dict[key] = value }
+            key = ""; value = ""
         }
 
         for ch in body {
-            if esc {
+            if escaping {
                 if readingKey { key.append(ch) } else { value.append(ch) }
-                esc = false
-            } else if ch == "\\" {
-                esc = true
-            } else if ch == ":" && readingKey {
-                readingKey = false
-            } else if ch == ";" {
-                putKV()
-            } else {
+                escaping = false; continue
+            }
+            switch ch {
+            case "\\": escaping = true
+            case ":" where readingKey: readingKey = false
+            case ";" where !readingKey: flush(); readingKey = true
+            default:
                 if readingKey { key.append(ch) } else { value.append(ch) }
             }
         }
+        flush()
 
-        let t = fields["T"]?.uppercased() ?? fields["t"]?.uppercased()
-        let s = fields["S"] ?? fields["s"]
-        let p = fields["P"] ?? fields["p"]
-
-        guard let ssid = s, !ssid.isEmpty else { return nil }
-        let sec: WiFiNetwork.Security
-        switch t {
-        case nil, .some(""), .some("NOPASS"): sec = .open
-        case .some("WEP"): sec = .wep
-        case .some("WPA"), .some("WPA2"): sec = .wpa2wpa3
-        case .some("WPA3"): sec = .wpa3
-        default: sec = .wpa2wpa3
+        var wifi = WiFiNetwork()
+        wifi.ssid = dict["S"] ?? ""
+        wifi.password = dict["P"] ?? ""
+        if let t = dict["T"]?.uppercased() {
+            switch t {
+            case "WEP": wifi.security = .wep
+            case "WPA": wifi.security = .wpa2Wpa3
+            case "NOPASS": wifi.security = .none
+            default: break
+            }
         }
-        return WiFiNetwork(ssid: ssid, password: p ?? "", security: sec)
+        return wifi.ssid.isEmpty ? nil : wifi
     }
 }

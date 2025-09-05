@@ -1,50 +1,94 @@
 import SwiftUI
 
 struct WiFiFormView: View {
-    @Environment(\.dismiss) private var dismiss
+    enum Mode { case add(WiFiNetwork), edit(WiFiNetwork) }
 
-    @State var item: WiFiNetwork
-    var onSubmit: (WiFiNetwork) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: WiFiStore
+
+    let mode: Mode
+    @State private var model: WiFiNetwork
+    @State private var showSecurity = false
+    @State private var showPrivate = false
+
+    init(mode: Mode) {
+        self.mode = mode
+        switch mode {
+        case .add(let draft): _model = State(initialValue: draft)
+        case .edit(let existed): _model = State(initialValue: existed)
+        }
+    }
 
     var body: some View {
-        Form {
-            Section("Thông tin cơ bản") {
-                TextField("Tên mạng", text: $item.ssid)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+        NavigationStack {
+            Form {
+                Section("THÔNG TIN CƠ BẢN") {
+                    TextField("Tên mạng", text: $model.ssid)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
 
-                SecureField("Mật khẩu", text: $item.password)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                    SecureField("Mật khẩu", text: $model.password)
 
-                Picker("Bảo mật", selection: $item.security) {
-                    ForEach(WiFiNetwork.Security.allCases) { sec in
-                        HStack {
-                            Text(sec.rawValue)
-                            if sec == item.security { Spacer(); Image(systemName: "checkmark") }
-                        }.tag(sec)
+                    // Bảo mật: chỉ text ở ngoài, tick sẽ xuất hiện TRONG menu
+                    HStack {
+                        Text("Bảo mật")
+                        Spacer()
+                        Text(model.security.display).foregroundStyle(.secondary)
                     }
-                }
+                    .contentShape(Rectangle())
+                    .onTapGesture { showSecurity = true }
+                    .confirmationDialog("Bảo mật", isPresented: $showSecurity, titleVisibility: .visible) {
+                        ForEach(WiFiSecurity.allCases, id: \.self) { sec in
+                            Button {
+                                model.security = sec
+                            } label: {
+                                HStack {
+                                    Text(sec.display)
+                                    if sec == model.security { Spacer(); Image(systemName: "checkmark") }
+                                }
+                            }
+                        }
+                    }
 
-                Picker("Địa chỉ Wi-Fi bảo mật", selection: $item.privateAddress) {
-                    ForEach(WiFiNetwork.PrivateAddressMode.allCases) { mode in
-                        HStack {
-                            Text(mode.rawValue)
-                            if mode == item.privateAddress { Spacer(); Image(systemName: "checkmark") }
-                        }.tag(mode)
+                    HStack {
+                        Text("Địa chỉ Wi-Fi bảo mật")
+                        Spacer()
+                        Text(model.privateAddress.display).foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { showPrivate = true }
+                    .confirmationDialog("Địa chỉ Wi-Fi bảo mật", isPresented: $showPrivate, titleVisibility: .visible) {
+                        ForEach(PrivateAddress.allCases, id: \.self) { opt in
+                            Button {
+                                model.privateAddress = opt
+                            } label: {
+                                HStack {
+                                    Text(opt.display)
+                                    if opt == model.privateAddress { Spacer(); Image(systemName: "checkmark") }
+                                }
+                            }
+                        }
                     }
                 }
             }
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) { Button("Huỷ") { dismiss() } }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Lưu") {
-                    onSubmit(item)
-                    dismiss()
-                }.bold()
+            .navigationTitle(modeTitle)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Hủy") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Lưu") { save() }.bold()
+                        .disabled(model.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
             }
         }
+    }
+
+    private var modeTitle: String { switch mode { case .add: "Thêm Wi-Fi"; case .edit: "Sửa Wi-Fi" } }
+
+    private func save() {
+        switch mode {
+        case .add: store.add(model)
+        case .edit: store.update(model)
+        }
+        dismiss()
     }
 }

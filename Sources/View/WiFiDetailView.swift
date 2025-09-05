@@ -1,132 +1,106 @@
 import SwiftUI
-import NetworkExtension
 
 struct WiFiDetailView: View {
-    var item: WiFiNetwork
-    var onUpdate: (WiFiNetwork) -> Void
-    var onDelete: () -> Void
-    var onEdit: () -> Void
+    @EnvironmentObject var store: WiFiStore
+    @Environment(\.dismiss) private var dismiss
 
-    @StateObject private var wifiInfo = CurrentWiFi()
-    @State private var showShareSheet = false
+    @State var network: WiFiNetwork
+    @State private var showEdit = false
     @State private var copied = false
-    @State private var connectMessage: String? = nil
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // QR vuông
-                QRCodeView(text: item.qrPayload, size: 240)
-                    .padding(.top, 8)
+                QRCodeView(text: network.wifiQRString)
+                    .frame(width: 180, height: 180)
+                    .padding(12)
+                    .background(Color(.secondarySystemBackground), in: Rectangle())
 
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        infoRow("Tên mạng", item.ssid)
-                        passwordRow()
-                        infoRow("Bảo mật", item.security.rawValue)
-                        infoRow("Địa chỉ Wi-Fi bảo mật", item.privateAddress.rawValue)
-                    }
-                }
-
-                Button {
-                    connect(item)
-                } label: {
-                    Label("Kết nối mạng này", systemImage: "wifi")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
+                infoCard
             }
-            .padding()
+            .padding(16)
         }
-        .navigationTitle(item.ssid)
+        .navigationTitle(network.ssid)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
-                    Button { showShareSheet = true } label: {
-                        Label("Chia sẻ mã QR", systemImage: "square.and.arrow.up")
-                    }
-                    Button { onEdit() } label: {
-                        Label("Sửa", systemImage: "pencil")
-                    }
-                    Button(role: .destructive) { onDelete() } label: {
-                        Label("Xoá", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
+                    Button {
+                        UIPasteboard.general.string = network.password
+                        copied = true
+                    } label: { Label("Sao chép mật khẩu", systemImage: "doc.on.doc") }
+
+                    Button {
+                        showEdit = true
+                    } label: { Label("Sửa", systemImage: "pencil") }
+
+                    Button(role: .destructive) {
+                        store.delete(network); dismiss()
+                    } label: { Label("Xóa", systemImage: "trash") }
+                } label: { Image(systemName: "ellipsis.circle") }
             }
         }
-        .sheet(isPresented: $showShareSheet) {
-            ShareSheet(items: [UIImage.qr(from: item.qrPayload, size: 1024)])
+        .sheet(isPresented: $showEdit) {
+            WiFiFormView(mode: .edit(network)).environmentObject(store)
         }
-        .onAppear { wifiInfo.requestAndFetch() }
-        .alert("Kết nối", isPresented: Binding(get: { connectMessage != nil }, set: { if !$0 { connectMessage = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: { Text(connectMessage ?? "") }
-        .overlay(alignment: .bottom) {
-            if copied {
-                Text("Đã sao chép mật khẩu")
-                    .font(.callout)
-                    .padding(8)
-                    .background(.thinMaterial, in: Capsule())
-                    .padding(.bottom, 16)
-                    .transition(.opacity)
+        .toast(isPresented: $copied, text: "Đã sao chép mật khẩu")
+    }
+
+    private var infoCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LabeledValue("Tên mạng", network.ssid)
+            LabeledValue("Mật khẩu", masked: network.password) {
+                UIPasteboard.general.string = network.password
+                copied = true
             }
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct LabeledValue: View {
+    let title: String
+    var value: String? = nil
+    var maskedValue: String? = nil
+    var onLongPress: (() -> Void)?
+
+    init(_ title: String, _ value: String) { self.title = title; self.value = value }
+    init(_ title: String, masked: String, onLongPress: (() -> Void)? = nil) {
+        self.title = title; self.maskedValue = masked; self.onLongPress = onLongPress
     }
 
-    @ViewBuilder private func infoRow(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.body)
-            Divider()
-        }
-    }
-
-    @ViewBuilder private func passwordRow() -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Mật khẩu").font(.caption).foregroundStyle(.secondary)
-            Text(item.security == .open ? "(Không cần)" : item.password)
-                .font(.body)
-                .textSelection(.disabled)
-                .onLongPressGesture {
-                    if item.security != .open {
-                        UIPasteboard.general.string = item.password
-                        withAnimation { copied = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                            withAnimation { copied = false }
-                        }
-                    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.subheadline).foregroundStyle(.secondary)
+            HStack {
+                if let value { Text(value).font(.headline) }
+                if let maskedValue {
+                    Text(String(repeating: "•", count: max(4, maskedValue.count)))
+                        .font(.headline)
+                        .onLongPressGesture(minimumDuration: 0.4) { onLongPress?() }
                 }
-            Divider()
-        }
-    }
-
-    private func connect(_ item: WiFiNetwork) {
-        wifiInfo.connect(ssid: item.ssid,
-                         password: item.security == .open ? nil : item.password,
-                         security: item.security,
-                         joinOnce: false) { err in
-            DispatchQueue.main.async {
-                if let nsErr = err as NSError? {
-                    if nsErr.domain == NEHotspotConfigurationErrorDomain,
-                       nsErr.code == NEHotspotConfigurationError.alreadyAssociated.rawValue {
-                        connectMessage = "Đã kết nối với \(item.ssid)."
-                    } else {
-                        connectMessage = "Kết nối thất bại: \(nsErr.localizedDescription)"
-                    }
-                } else {
-                    connectMessage = "Đã gửi yêu cầu kết nối \(item.ssid). Có thể hệ thống hiện prompt xác nhận."
-                }
+                Spacer()
             }
         }
     }
 }
 
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+private extension View {
+    func toast(isPresented: Binding<Bool>, text: String) -> some View {
+        ZStack {
+            self
+            if isPresented.wrappedValue {
+                Text(text).padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .transition(.opacity)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                            withAnimation { isPresented.wrappedValue = false }
+                        }
+                    }
+            }
+        }
+        .animation(.easeInOut, value: isPresented.wrappedValue)
     }
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
