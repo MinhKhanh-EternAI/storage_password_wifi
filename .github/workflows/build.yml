@@ -1,4 +1,4 @@
-name: build-unsigned-ipa
+name: build-unsigned-ipa-tuist
 
 on:
   workflow_dispatch:
@@ -12,55 +12,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Tạo mã nguồn & spec Tuist (tự hồi phục, không phụ thuộc file sẵn trong repo)
       - name: Prepare project files (self-heal)
         run: |
           set -euo pipefail
-          rm -f project.yml
+          rm -rf Sources Tuist* Project.swift *.xcodeproj *.xcworkspace
           mkdir -p Sources
 
-          cat > project.yml << 'YAML'
-          name: WiFiOffline
-          options:
-            createIntermediateGroups: true
-          configs:
-            Debug: debug
-            Release: release
-          targets:
-            WiFiOffline:
-              type: application
-              platform: iOS
-              deploymentTarget: "14.0"
-              # Trỏ trực tiếp tới 2 file để tránh lỗi 'path'
-              sources:
-                - path: ./Sources/WiFiOfflineApp.swift
-                - path: ./Sources/ContentView.swift
-              settings:
-                CODE_SIGN_STYLE: Manual
-                CODE_SIGNING_ALLOWED: NO
-                CODE_SIGNING_REQUIRED: NO
-                CODE_SIGNING_IDENTITY: ""
-              info:
-                properties:
-                  CFBundleName: WiFiOffline
-                  CFBundleIdentifier: com.example.wifioffline
-                  CFBundleShortVersionString: "1.0"
-                  CFBundleVersion: "1"
-                  UISupportedInterfaceOrientations:
-                    - UIInterfaceOrientationPortrait
-                  UIRequiredDeviceCapabilities:
-                    - arm64
-          YAML
-
+          # 1) App entry
           cat > Sources/WiFiOfflineApp.swift << 'SWIFT'
           import SwiftUI
           @main
           struct WiFiOfflineApp: App {
-              var body: some Scene {
-                  WindowGroup { ContentView() }
-              }
+              var body: some Scene { WindowGroup { ContentView() } }
           }
           SWIFT
 
+          # 2) UI & logic (plain JSON, offline)
           cat > Sources/ContentView.swift << 'SWIFT'
           import SwiftUI
           import NetworkExtension
@@ -149,12 +117,9 @@ jobs:
           func connectTo(ssid: String, pass: String, security: WiFiNetwork.Security, joinOnce: Bool = false, completion: @escaping (Error?) -> Void) {
               let config: NEHotspotConfiguration
               switch security {
-              case .open:
-                  config = NEHotspotConfiguration(ssid: ssid)
-              case .wep:
-                  config = NEHotspotConfiguration(ssid: ssid, wepPassphrase: pass)
-              default:
-                  config = NEHotspotConfiguration(ssid: ssid, passphrase: pass, isWEP: false)
+              case .open: config = NEHotspotConfiguration(ssid: ssid)
+              case .wep:  config = NEHotspotConfiguration(ssid: ssid, wepPassphrase: pass)
+              default:    config = NEHotspotConfiguration(ssid: ssid, passphrase: pass, isWEP: false)
               }
               config.joinOnce = joinOnce
               NEHotspotConfigurationManager.shared.apply(config) { err in
@@ -207,16 +172,12 @@ jobs:
                                   }
                                   Text("Bảo mật: \(item.security.rawValue.uppercased())")
                                       .font(.subheadline).foregroundStyle(.secondary)
-                                  if let note = item.note, !note.isEmpty {
-                                      Text(note).font(.footnote)
-                                  }
+                                  if let note = item.note, !note.isEmpty { Text(note).font(.footnote) }
                               }
                               .contentShape(Rectangle())
                               .onTapGesture { editing = item; showEditor = true }
                               .swipeActions {
-                                  Button(role: .destructive) { store.delete(item) } label: {
-                                      Label("Xóa", systemImage: "trash")
-                                  }
+                                  Button(role: .destructive) { store.delete(item) } label: { Label("Xóa", systemImage: "trash") }
                               }
                           }
                           .onDelete(perform: store.delete)
@@ -243,16 +204,11 @@ jobs:
                               }
                           }
                       }
-                      .sheet(item: $exportURL) { url in
-                          ShareSheet(items: [url])
-                      }
+                      .sheet(item: $exportURL) { url in ShareSheet(items: [url]) }
                       .fileImporter(isPresented: $showImporter, allowedContentTypes: [UTType.json]) { res in
                           if case .success(let url) = res { try? store.import(from: url) }
                       }
-                      .alert(item: Binding(
-                          get: { alertMsg.map { AlertItem(message: $0) } },
-                          set: { _ in alertMsg = nil })
-                      ) { item in
+                      .alert(item: Binding(get: { alertMsg.map { AlertItem(message: $0) } }, set: { _ in alertMsg = nil })) { item in
                           Alert(title: Text(item.message))
                       }
                   }
@@ -277,20 +233,13 @@ jobs:
                                   Text(sec.rawValue.uppercased()).tag(sec)
                               }
                           }
-                          if item.security != .open {
-                              SecureField("Mật khẩu", text: $item.password)
-                          }
-                          TextField("Ghi chú", text: Binding(
-                              get: { item.note ?? "" },
-                              set: { item.note = $0.isEmpty ? nil : $0 }
-                          ))
+                          if item.security != .open { SecureField("Mật khẩu", text: $item.password) }
+                          TextField("Ghi chú", text: Binding(get: { item.note ?? "" }, set: { item.note = $0.isEmpty ? nil : $0 }))
                           Section("QR Wi-Fi") {
                               if item.security == .open || !item.password.isEmpty {
                                   let qrStr = wifiQRString(ssid: item.ssid, security: item.security, password: item.password)
                                   Image(uiImage: makeQR(from: qrStr)).resizable().interpolation(.none).scaledToFit()
-                              } else {
-                                  Text("Nhập SSID & mật khẩu để tạo QR")
-                              }
+                              } else { Text("Nhập SSID & mật khẩu để tạo QR") }
                           }
                       }
                       .navigationTitle("Mạng Wi-Fi")
@@ -299,9 +248,7 @@ jobs:
                               Button("Lưu") { onDone(item, true) }
                                   .disabled(item.ssid.isEmpty || (item.security != .open && item.password.isEmpty))
                           }
-                          ToolbarItem(placement: .cancellationAction) {
-                              Button("Đóng") { onDone(item, false) }
-                          }
+                          ToolbarItem(placement: .cancellationAction) { Button("Đóng") { onDone(item, false) } }
                       }
                   }
               }
@@ -316,31 +263,58 @@ jobs:
           }
           SWIFT
 
+          # 3) Spec Tuist (thay cho XcodeGen)
+          cat > Project.swift << 'TUIST'
+          import ProjectDescription
+
+          let project = Project(
+            name: "WiFiOffline",
+            options: .options(
+              textSettings: .textSettings(usesTabs: false, indentWidth: 2, tabWidth: 2)
+            ),
+            targets: [
+              Target(
+                name: "WiFiOffline",
+                platform: .iOS,
+                product: .app,
+                bundleId: "com.example.wifioffline",
+                deploymentTarget: .iOS(targetVersion: "14.0", devices: [.iphone]),
+                infoPlist: .default,
+                sources: ["Sources/**"],
+                resources: []
+              )
+            ]
+          )
+          TUIST
+
       - name: Show repo tree
         run: |
           echo "== repo =="
           ls -la
           echo "== Sources =="
           ls -la Sources
-          echo "== project.yml =="
-          cat project.yml
+          echo "== Project.swift =="
+          sed -n '1,120p' Project.swift
 
-      - name: Install tools
+      - name: Install Tuist
         run: |
           brew update
-          brew install xcodegen
-          xcodebuild -version
-          xcrun --sdk iphoneos --show-sdk-version
+          brew tap tuist/tuist
+          brew install tuist
+          tuist version
 
-      - name: Generate Xcode project
+      - name: Generate Xcode project (Tuist)
         run: |
-          xcodegen generate
+          tuist generate
           ls -la *.xcodeproj || true
+          ls -la *.xcworkspace || true
 
       - name: Build unsigned .app (iphoneos)
         run: |
           set -euo pipefail
-          xcodebuild -scheme "WiFiOffline" \
+          # Tuist tạo workspace WiFiOffline.xcworkspace
+          xcodebuild -workspace "WiFiOffline.xcworkspace" \
+            -scheme "WiFiOffline" \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
