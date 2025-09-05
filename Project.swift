@@ -13,14 +13,18 @@ let project = Project(
       platform: .iOS,
       product: .app,
       bundleId: "com.example.wifioffline",
-      deploymentTarget: .iOS(targetVersion: "16.0", devices: [.iphone]),
+      // Tuist 4.67.x: dùng deploymentTargets (không còn 'devices')
+      deploymentTargets: .iOS("16.0"),
       infoPlist: .file(path: "Info.plist"),
-      sources: ["Sources/**"],           // (đặt trước entitlements để tránh lỗi tuist)
+
+      // Lưu ý: 'sources' phải đứng trước 'entitlements'
+      sources: ["Sources/**"],
       resources: ["Assets/**"],
+
       entitlements: .file(path: "WiFiOffline.entitlements"),
       settings: .settings(base: [
         "SWIFT_VERSION": "5.0",
-        "INFOPLIST_FILE": "Info.plist",
+        "INFOPLIST_FILE": "Info.plist"
       ])
     )
   ],
