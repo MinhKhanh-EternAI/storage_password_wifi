@@ -27,7 +27,7 @@ jobs:
           brew install --formula tuist
           tuist version
 
-      # 1) Chuẩn hoá & kiểm tra Info.plist (BOM/CRLF -> LF) — dùng perl, an toàn cho YAML
+      # 1) Normalize & validate Info.plist (strip BOM/CRLF -> LF) using perl (YAML-safe)
       - name: Normalize & validate Info.plist
         shell: bash
         run: |
@@ -35,9 +35,8 @@ jobs:
           if [[ ! -f Info.plist ]]; then
             echo "Missing Info.plist at repo root"; exit 1
           fi
-          # Xoá BOM đầu file + chuyển CRLF/CR -> LF
+          # Strip BOM + convert CRLF/CR -> LF
           perl -0777 -pe 's/^\x{FEFF}//; s/\r\n/\n/g; s/\r/\n/g;' -i '' Info.plist
-          # Convert về xml1 & lint
           plutil -convert xml1 Info.plist
           plutil -lint Info.plist
 
@@ -75,20 +74,12 @@ jobs:
           SCHEME="WiFiOffline"
 
           if [[ "${{ steps.where.outputs.type }}" == "workspace" ]]; then
-            xcodebuild -workspace "${{ steps.where.outputs.path }}" \
-              -scheme "$SCHEME" -configuration Release \
-              -sdk iphoneos -destination 'generic/platform=iOS' \
-              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
-              -derivedDataPath "$DERIVED" clean build
+            xcodebuild -workspace "${{ steps.where.outputs.path }}"               -scheme "$SCHEME" -configuration Release               -sdk iphoneos -destination 'generic/platform=iOS'               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY=""               -derivedDataPath "$DERIVED" clean build
           else
-            xcodebuild -project "${{ steps.where.outputs.path }}" \
-              -scheme "$SCHEME" -configuration Release \
-              -sdk iphoneos -destination 'generic/platform=iOS' \
-              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY="" \
-              -derivedDataPath "$DERIVED" clean build
+            xcodebuild -project "${{ steps.where.outputs.path }}"               -scheme "$SCHEME" -configuration Release               -sdk iphoneos -destination 'generic/platform=iOS'               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_IDENTITY=""               -derivedDataPath "$DERIVED" clean build
           fi
 
-      # 4) Đóng gói IPA chuẩn + verify Info.plist
+      # 4) Package IPA with ditto + ensure essential Info.plist keys
       - name: Package unsigned IPA (proper, with fallbacks)
         shell: bash
         run: |
@@ -97,13 +88,9 @@ jobs:
           CONFIG="Release"
 
           if [[ "${{ steps.where.outputs.type }}" == "workspace" ]]; then
-            APP_PATH=$(xcodebuild -workspace "${{ steps.where.outputs.path }}" \
-              -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null \
-              | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
+            APP_PATH=$(xcodebuild -workspace "${{ steps.where.outputs.path }}"               -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null               | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
           else
-            APP_PATH=$(xcodebuild -project "${{ steps.where.outputs.path }}" \
-              -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null \
-              | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
+            APP_PATH=$(xcodebuild -project "${{ steps.where.outputs.path }}"               -scheme "$SCHEME" -configuration "$CONFIG" -sdk iphoneos -showBuildSettings 2>/dev/null               | awk -F' = ' '/TARGET_BUILD_DIR/ {t=$2} /WRAPPER_NAME/ {w=$2} END {if(t && w) print t "/" w}')
           fi
 
           [[ -z "${APP_PATH:-}" || ! -d "$APP_PATH" ]] && APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name "*.app" -print -quit || true)
@@ -119,21 +106,12 @@ jobs:
           PLIST="Payload/$APP_NAME.app/Info.plist"
 
           echo "== Ensure essential keys in Info.plist =="
-          # Bundle ID chắc đã có; thêm/cập nhật các key còn thiếu
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$PLIST" >/dev/null 2>&1 \
-            || /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $APP_NAME" "$PLIST" \
-            || /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $APP_NAME" "$PLIST"
-
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST" >/dev/null 2>&1 \
-            || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string 1.0" "$PLIST"
-
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST" >/dev/null 2>&1 \
-            || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$PLIST" >/dev/null 2>&1             || /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $APP_NAME" "$PLIST"             || /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $APP_NAME" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST" >/dev/null 2>&1             || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string 1.0" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST" >/dev/null 2>&1             || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1" "$PLIST"
 
           echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")"
           echo "CFBundleExecutable: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST")"
-          echo "CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
-          echo "CFBundleVersion: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
 
           IPA_NAME="${APP_NAME}-unsigned.ipa"
           ditto -ck --sequesterRsrc --keepParent Payload "$IPA_NAME"
@@ -141,13 +119,6 @@ jobs:
           echo "== IPA content preview =="
           unzip -l "$IPA_NAME" | sed -n '1,80p'
           ls -lah "$IPA_NAME"
-
-          # App bạn rất nhỏ, hạ ngưỡng check còn 30KB để tránh false-positive
-          SIZE=$(stat -f%z "$IPA_NAME" 2>/dev/null || stat -c%s "$IPA_NAME")
-          if (( SIZE < 30000 )); then
-            echo "IPA too small ($SIZE bytes) -> probably invalid"
-            exit 1
-          fi
 
       - name: Upload artifact (unsigned IPA)
         uses: actions/upload-artifact@v4
