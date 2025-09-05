@@ -1,4 +1,4 @@
-name: ci: Xcode/Tuist unsigned IPA pipeline
+name: Xcode/Tuist unsigned IPA pipeline
 
 on:
   push:
