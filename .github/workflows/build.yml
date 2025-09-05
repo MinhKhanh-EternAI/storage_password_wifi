@@ -31,7 +31,11 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: |
+          xcodegen generate
+          echo "Generated project files:"
+          ls -la *.xcodeproj || echo "No .xcodeproj found"
+          ls -la *.xcworkspace || echo "No .xcworkspace found"
 
       - name: Build unsigned .app (iphoneos)
         run: |
@@ -43,17 +47,26 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_IDENTITY="" \
-            -derivedDataPath build
+            -derivedDataPath build \
+            build
 
       - name: Package IPA
         run: |
           set -euo pipefail
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" -print -quit)
+          echo "Looking for built app..."
+          find build -name "*.app" -type d
+          APP_PATH=$(find build -name "*.app" -type d -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app file found in build directory"
+            exit 1
+          fi
           echo "Found app at: $APP_PATH"
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           /usr/bin/zip -qry WiFiOffline-unsigned.ipa Payload
           rm -rf Payload
+          echo "IPA created: WiFiOffline-unsigned.ipa"
+          ls -la WiFiOffline-unsigned.ipa
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4

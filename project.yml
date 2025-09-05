@@ -5,6 +5,16 @@ configs:
   Debug: debug
   Release: release
 
+schemes:
+  WiFiOffline:
+    build:
+      targets:
+        WiFiOffline: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
 targets:
   WiFiOffline:
     type: application
@@ -14,6 +24,10 @@ targets:
     sources:
       - path: ./Sources/WiFiOfflineApp.swift
       - path: ./Sources/ContentView.swift
+    
+    # Entitlements file
+    entitlements:
+      path: ./Entitlements/WiFiOffline.entitlements
 
     # Không ký khi build
     settings:
