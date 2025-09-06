@@ -33,12 +33,12 @@ struct WiFiDetailView: View {
 
             Section("BẢO MẬT") {
                 NavigationLink {
-                    SecurityPickerView(selection: $item.security)
+                    SecurityPickerView(selection: $item.security) // <-- Binding<SecurityType>
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text(item.security)
+                        Text(item.security.rawValue) // <-- hiển thị tên từ enum
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.right")
                             .foregroundStyle(.tertiary)
@@ -98,7 +98,9 @@ struct WiFiDetailView: View {
     }
 
     private func shareQR() {
-        let str = QRCode.wifiString(ssid: item.ssid, password: item.password, security: item.security)
+        let str = QRCode.wifiString(ssid: item.ssid,
+                                    password: item.password,
+                                    security: item.security.rawValue) // <-- dùng rawValue
         guard let img = QRCode.make(text: str, size: CGSize(width: 1024, height: 1024)) else { return }
         let avc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
         if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -111,7 +113,9 @@ struct WiFiDetailView: View {
 private struct QRCodeView: View {
     let item: WiFiNetwork
     var body: some View {
-        let str = QRCode.wifiString(ssid: item.ssid, password: item.password, security: item.security)
+        let str = QRCode.wifiString(ssid: item.ssid,
+                                    password: item.password,
+                                    security: item.security.rawValue) // <-- dùng rawValue
         if let img = QRCode.make(text: str, size: CGSize(width: 600, height: 600)) {
             Image(uiImage: img)
                 .resizable()

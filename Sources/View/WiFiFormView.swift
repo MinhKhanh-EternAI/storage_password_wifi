@@ -27,12 +27,12 @@ struct WiFiFormView: View {
 
             Section("BẢO MẬT") {
                 NavigationLink {
-                    SecurityPickerView(selection: $item.security)
+                    SecurityPickerView(selection: $item.security) // <-- Binding<SecurityType>
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text(item.security)
+                        Text(item.security.rawValue) // <-- hiển thị tên từ enum
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.right")
                             .foregroundStyle(.tertiary)
@@ -54,40 +54,5 @@ struct WiFiFormView: View {
                 .fontWeight(.semibold)
             }
         }
-    }
-}
-
-// Picker danh sách bảo mật dạng String (khớp model hiện tại)
-private struct SecurityPickerView: View {
-    @Binding var selection: String
-
-    static let options: [String] = [
-        "Không có",
-        "WEP",
-        "WPA",
-        "WPA2/WPA3",
-        "WPA3",
-        "WPA Doanh nghiệp",
-        "WPA2 Doanh nghiệp",
-        "WPA3 Doanh nghiệp"
-    ]
-
-    var body: some View {
-        List {
-            ForEach(Self.options, id: \.self) { opt in
-                HStack {
-                    Text(opt)
-                    Spacer()
-                    if opt == selection {
-                        Image(systemName: "checkmark")
-                            .foregroundStyle(.blue)
-                    }
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { selection = opt }
-            }
-        }
-        .navigationTitle("Bảo mật")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
