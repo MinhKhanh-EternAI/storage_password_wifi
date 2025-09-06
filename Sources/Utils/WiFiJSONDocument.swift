@@ -3,8 +3,12 @@ import UniformTypeIdentifiers
 import SwiftUI
 
 /// Dùng cho fileImporter / fileExporter (định dạng JSON danh sách WiFiNetwork)
-struct WiFiJSONDocument: FileDocument {
+struct WiFiJSONDocument: FileDocument, Identifiable {
     static var readableContentTypes: [UTType] { [.json] }
+    static var writableContentTypes: [UTType] { [.json] }
+
+    // Cần có 'id' để conform Identifiable khi dùng .fileExporter(item:)
+    var id = UUID()
 
     var networks: [WiFiNetwork]
 
