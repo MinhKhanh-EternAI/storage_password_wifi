@@ -21,20 +21,10 @@ struct ContentView: View {
                     // --- NỘI DUNG THẺ "MẠNG HIỆN TẠI" ---
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                            !ssid.isEmpty {
-                                Text(ssid)
-                                    .font(.headline)
-                                Text("Đang kết nối")
-                                    .foregroundStyle(.secondary)
-                                    .font(.footnote)
-                            } else {
-                                Text("Wifi Hiện tại")
-                                    .font(.headline)
-                                Text("Mạng không khả dụng")
-                                    .foregroundStyle(.secondary)
-                                    .font(.footnote)
-                            }
+                            Text(store.currentSSID ?? "Wifi Hiện tại")
+                            .font(.headline) Text("Đang kết nối")
+                            .foregroundStyle(.secondary)
+                            .font(.footnote)
                         }
                         Spacer()
                         // Giữ nút "+" trong card như cũ
