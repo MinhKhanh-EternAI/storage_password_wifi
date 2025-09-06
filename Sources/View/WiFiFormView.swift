@@ -13,34 +13,48 @@ struct WiFiFormView: View {
         Form {
             // THÔNG TIN
             Section {
+                // Điều chỉnh để khớp mong muốn (tăng/giảm nếu cần)
+                let labelWidth: CGFloat = 92   // << chỉnh số này để thay đổi khoảng cách
+
                 // TÊN
-                LabeledContent {
+                HStack(spacing: 12) {
+                    Text("Tên")
+                        .foregroundColor(.primary)
+                        .frame(width: labelWidth, alignment: .leading)
+
                     TextField(
-                        "",                       // không title để placeholder hiển thị
+                        "",
                         text: $item.ssid,
-                        prompt: Text("Tên mạng")  // ⚠️ bỏ foregroundStyle để hợp iOS 16
+                        prompt: Text("Tên mạng")
                     )
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
-                } label: {
-                    Text("Tên").foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 4)      // << đệm nhỏ bên trái vùng nhập
                 }
+                .padding(.vertical, 2)
 
                 // MẬT KHẨU
-                LabeledContent {
+                HStack(spacing: 12) {
+                    Text("Mật khẩu")
+                        .foregroundColor(.primary)
+                        .frame(width: labelWidth, alignment: .leading)
+
                     SecureField(
                         "",
                         text: passwordBinding,
-                        prompt: Text("Mật khẩu")  // ⚠️ bỏ foregroundStyle để hợp iOS 16
+                        prompt: Text("Mật khẩu")
                     )
-                } label: {
-                    Text("Mật khẩu").foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 4)
                 }
+                .padding(.vertical, 2)
+
             } header: {
                 Text("THÔNG TIN")
                     .textCase(.uppercase)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
 
             // BẢO MẬT
