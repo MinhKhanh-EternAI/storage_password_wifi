@@ -2,7 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    // MARK: Env & State
     @EnvironmentObject var store: WiFiStore
     @EnvironmentObject var theme: ThemeManager
 
@@ -12,63 +11,67 @@ struct ContentView: View {
     @State private var exportDoc = WiFiJSONDocument(networks: [])
     @State private var searchText = ""
     @State private var confirmDelete: UUID?
-
     private let currentWiFi = CurrentWiFi()
 
-    // MARK: Layout constants
-    private let cellLeading: CGFloat = 16
-    private let statusDotSize: CGFloat = 6
-
-    // MARK: Body
     var body: some View {
         NavigationStack {
-            List {
-                currentNetworkSection
-                savedListSection
-            }
-            .listStyle(.insetGrouped)
-            .listSectionSpacingCompat(6)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { topToolbar }
-            .searchable(text: $searchText,
-                        placement: .navigationBarDrawer(displayMode: .automatic),
-                        prompt: "Search")
-            .onAppear { refreshSSID() }
-            .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
-                confirmDelete != nil
-            }, set: { v in if !v { confirmDelete = nil } })) {
-                Button("Hủy", role: .cancel) {}
-                Button("Chắc chắn", role: .destructive) {
-                    if let id = confirmDelete { store.delete(id) }
+            listContent
+                .listStyle(.insetGrouped)
+                .listSectionSpacingCompat(4)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { topToolbar }
+                .searchable(text: $searchText,
+                            placement: .navigationBarDrawer(displayMode: .automatic),
+                            prompt: "Search")
+                .onAppear { refreshSSID() }
+                .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
+                    confirmDelete != nil
+                }, set: { v in
+                    if !v { confirmDelete = nil }
+                })) {
+                    Button("Hủy", role: .cancel) {}
+                    Button("Chắc chắn", role: .destructive) {
+                        if let id = confirmDelete { store.delete(id) }
+                    }
                 }
-            }
         }
         // Export
-        .fileExporter(isPresented: $showingExporter,
-                      document: exportDoc,
-                      contentType: .json,
-                      defaultFilename: "wifi_networks.json",
-                      onCompletion: { _ in })
+        .fileExporter(
+            isPresented: $showingExporter,
+            document: exportDoc,
+            contentType: .json,
+            defaultFilename: "wifi_networks.json",
+            onCompletion: { _ in }
+        )
         // Import
         .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
             handleImport(result)
         }
     }
 
-    // MARK: - Current network section
+    // MARK: - Subviews
+
+    @ViewBuilder
+    private var listContent: some View {
+        List {
+            currentNetworkSection
+            savedListSection
+        }
+    }
+
     private var currentNetworkSection: some View {
         Section {
+            // CARD "Mạng hiện tại"
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    if isConnected {
-                        Text(store.currentSSID!.trimmingCharacters(in: .whitespacesAndNewlines))
-                            .font(.headline)
+                    if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !ssid.isEmpty {
+                        Text(ssid).font(.headline)
                         Text("Đang kết nối")
                             .foregroundStyle(.secondary)
                             .font(.footnote)
                     } else {
-                        Text("Không khả dụng")
-                            .font(.headline)
+                        Text("Không khả dụng").font(.headline)
                         Text("Vui lòng kết nối mạng")
                             .foregroundStyle(.secondary)
                             .font(.footnote)
@@ -76,47 +79,38 @@ struct ContentView: View {
                 }
                 Spacer()
                 Button {
-                    if isConnected {
-                        pathToForm(with: WiFiNetwork(
-                            ssid: store.currentSSID!.trimmingCharacters(in: .whitespacesAndNewlines),
-                            password: nil
-                        ))
+                    if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !ssid.isEmpty {
+                        pathToForm(with: WiFiNetwork(ssid: ssid, password: nil))
                     } else {
-                        pathToForm(with: WiFiNetwork(ssid: "", password: nil))
+                        pathToForm(with: newItem())
                     }
-                } label: { Image(systemName: "plus").font(.title3) }
-                .buttonStyle(.borderless)
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
-            // Cùng lề trái với List
-            .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
-            .listRowSeparator(.hidden)
-        } header: {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isConnected ? .green : .red)
-                    .frame(width: statusDotSize, height: statusDotSize)
-                Text("MẠNG HIỆN TẠI")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                Spacer()
-                Button(action: refreshSSID) {
-                    Label("Làm mới", systemImage: "arrow.clockwise")
-                        .font(.footnote)
+                } label: {
+                    Image(systemName: "plus").font(.title3)
                 }
                 .buttonStyle(.borderless)
             }
-            .padding(.leading, cellLeading) // đồng bộ mép trái
+            .padding(.vertical, 10)
+            .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))
+        } header: {
+            HStack(spacing: 8) {
+                statusDot
+                Text("MẠNG HIỆN TẠI")
+                    .textCase(.uppercase)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    refreshSSID()
+                } label: {
+                    Label("Làm mới", systemImage: "arrow.clockwise").font(.footnote)
+                }
+                .buttonStyle(.borderless)
+            }
             .padding(.top, 4)
         }
     }
 
-    // MARK: - Saved section
     @ViewBuilder
     private var savedListSection: some View {
         if filteredItems.isEmpty {
@@ -125,99 +119,63 @@ struct ContentView: View {
                     .listRowBackground(Color.clear)
             } header: {
                 HStack(spacing: 8) {
-                    savedStatusDot
+                    savedStatusDot            // 🔸 dùng dot riêng cho "ĐÃ LƯU"
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
-                .padding(.leading, cellLeading)
                 .padding(.top, 4)
             }
         } else {
-            // Gói lại để nhánh else vẫn trả về *một* view
-            Group {
-                // Header "ĐÃ LƯU" (chỉ một lần)
-                Section { } header: {
-                    HStack(spacing: 8) {
-                        savedStatusDot
-                        Text("ĐÃ LƯU")
-                            .textCase(.uppercase)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        Spacer()
+            // Mỗi chữ cái là Section top-level
+            ForEach(Array(groupedKeys.enumerated()), id: \.element) { index, key in
+                let items = filteredItemsByKey[key] ?? []
+                Section {
+                    ForEach(items) { network in
+                        NavigationLink {
+                            WiFiDetailView(item: network).environmentObject(store)
+                        } label: { row(for: network) }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) { confirmDelete = network.id } label: {
+                                Label("Xóa", systemImage: "trash")
+                            }.tint(.red)
+                        }
                     }
-                    .padding(.leading, cellLeading)
-                    .padding(.top, 4)
-                }
-
-                // Các nhóm A, B, C…
-                ForEach(groupedKeys, id: \.self) { key in
-                    Section {
-                        ForEach(filteredItemsByKey[key] ?? []) { network in
-                            NavigationLink {
-                                WiFiDetailView(item: network).environmentObject(store)
-                            } label: {
-                                row(for: network)
-                            }
-                            .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    confirmDelete = network.id
-                                } label: { Label("Xóa", systemImage: "trash") }
-                                .tint(.red)
+                } header: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if index == 0 {
+                            HStack(spacing: 8) {
+                                savedStatusDot    // 🔸 chấm trạng thái cho header đầu
+                                Text("ĐÃ LƯU")
+                                    .textCase(.uppercase)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
                             }
                         }
-                    } header: {
-                        Text(key)
-                            .textCase(.uppercase)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, cellLeading)
-                            .padding(.top, 2)
+                        Text(key).textCase(.uppercase)
                     }
                 }
             }
         }
     }
 
-    private var savedStatusDot: some View {
-        Circle()
-            .fill(hasSavedNetworks ? .green : .red)
-            .frame(width: statusDotSize, height: statusDotSize)
-    }
-
-    // MARK: - Rows & small views
-    private func row(for item: WiFiNetwork) -> some View {
+    private var savedHeader: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.ssid)
-                    .font(.headline)
-                HStack(spacing: 8) {
-                    PasswordDots(text: item.password ?? "")
-                }
-            }
+            Text("ĐÃ LƯU")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
             Spacer()
-            Image(systemName: "qrcode")
-                .foregroundStyle(.secondary)
         }
-        .contentShape(Rectangle())
+        .padding(.top, 4)
     }
 
-    private var emptyState: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "wifi.slash")
-            Text("Chưa có mạng nào được lưu")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 16)
-    }
-
-    // MARK: - Toolbar
+    // Toolbar
     @ToolbarContentBuilder
     private var topToolbar: some ToolbarContent {
+        // Trái
         ToolbarItem(placement: .topBarLeading) {
             Menu {
                 Picker("Giao diện", selection: $theme.mode) {
@@ -226,12 +184,13 @@ struct ContentView: View {
                     }
                 }
             } label: {
-                Image(systemName: theme.mode == .dark ? "moon.fill"
-                                 : theme.mode == .light ? "sun.max.fill"
-                                 : "circle.lefthalf.filled")
+                Image(systemName: theme.mode == .dark ? "moon.fill" :
+                                    theme.mode == .light ? "sun.max.fill" :
+                                    "circle.lefthalf.filled")
             }
         }
 
+        // Giữa
         ToolbarItem(placement: .principal) {
             Text("Wi-Fi")
                 .font(.system(size: 18, weight: .bold))
@@ -239,8 +198,9 @@ struct ContentView: View {
                 .minimumScaleFactor(0.8)
         }
 
+        // Phải
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button { pathToForm(with: WiFiNetwork(ssid: "", password: nil)) } label: {
+            Button { pathToForm(with: newItem()) } label: {
                 Image(systemName: "plus")
             }
             Menu {
@@ -256,18 +216,13 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Logic helpers
+    // MARK: - Helpers (logic & small views)
+
     private func pathToForm(with item: WiFiNetwork) {
+        showingAdd = true
         let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
-
-        // tránh API deprecated
-        if let scene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive }),
-           let root = scene.windows.first?.rootViewController {
-            root.present(hosting, animated: true)
-        }
+        UIApplication.shared.windows.first?.rootViewController?.present(hosting, animated: true)
     }
 
     private var filteredItems: [WiFiNetwork] {
@@ -289,6 +244,36 @@ struct ContentView: View {
             if b == "#" { return true }
             return a.localizedStandardCompare(b) == .orderedAscending
         }
+    }
+
+    private var emptyState: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "wifi.slash")
+            Text("Chưa có mạng nào được lưu")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 16)
+    }
+
+    private func row(for item: WiFiNetwork) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.ssid)
+                    .font(.headline)
+                HStack(spacing: 8) {
+                    SecureDots(text: item.password ?? "")
+                }
+            }
+            Spacer()
+            Image(systemName: "qrcode")
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func newItem() -> WiFiNetwork {
+        WiFiNetwork(ssid: "", password: nil)
     }
 
     private func refreshSSID() {
@@ -323,11 +308,27 @@ struct ContentView: View {
         return false
     }
 
+    // Chấm trạng thái cho "MẠNG HIỆN TẠI" (xanh/đỏ)
+    private var statusDot: some View {
+        Circle()
+            .fill(isConnected ? Color.green : Color.red)
+            .frame(width: 8, height: 8)
+    }
+
+    // 🔸 Chấm trạng thái riêng cho "ĐÃ LƯU"
+    // Cam nếu KHÔNG có mạng lưu, Xanh nếu có.
+    private var savedStatusDot: some View {
+        Circle()
+            .fill(hasSavedNetworks ? Color.green : Color.orange)
+            .frame(width: 8, height: 8)
+    }
+
     private var hasSavedNetworks: Bool { !store.items.isEmpty }
 }
 
-// MARK: - Small view for password dots
-private struct PasswordDots: View {
+// MARK: - Small helpers used in ContentView
+
+private struct SecureDots: View {
     let text: String
     var body: some View {
         if text.isEmpty {
@@ -342,22 +343,25 @@ private struct PasswordDots: View {
     }
 }
 
-// MARK: - Utilities
 private extension String {
     var firstGroupKey: String {
         guard let first = trimmingCharacters(in: .whitespacesAndNewlines).first else { return "#" }
         let s = String(first).folding(options: .diacriticInsensitive, locale: .current)
         let u = s.uppercased()
-        if u.range(of: "[A-Z0-9]", options: .regularExpression) != nil { return u }
+        if u.range(of: "[A-Z0-9]", options: .regularExpression) != nil {
+            return u
+        }
         return "#"
     }
 }
+
+// MARK: - Compat
 
 extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
-            self.listSectionSpacing(spacing) // tương đương .compact khi để 6
+            self.listSectionSpacing(spacing)   // hoặc .compact
         } else {
             self
         }
