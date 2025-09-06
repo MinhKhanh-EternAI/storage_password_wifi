@@ -91,7 +91,7 @@ struct ContentView: View {
                 .buttonStyle(.borderless)
             }
             .padding(.vertical, 10)
-            .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))
+            // .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))
         } header: {
             HStack(spacing: 8) {
                 statusDot
@@ -338,7 +338,7 @@ private struct SecureDots: View {
         } else {
             Text(String(repeating: "●", count: max(6, text.count)))
                 .foregroundStyle(.secondary)
-                .font(.callout)
+                .font(.footnote)
         }
     }
 }
