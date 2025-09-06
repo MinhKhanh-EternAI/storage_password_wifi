@@ -117,6 +117,7 @@ struct ContentView: View {
     }
 
     // MARK: - Saved section
+    @ViewBuilder
     private var savedListSection: some View {
         if filteredItems.isEmpty {
             Section {
@@ -135,46 +136,47 @@ struct ContentView: View {
                 .padding(.top, 4)
             }
         } else {
-            // Header "ĐÃ LƯU" (chỉ một lần)
-            Section { } header: {
-                HStack(spacing: 8) {
-                    savedStatusDot
-                    Text("ĐÃ LƯU")
-                        .textCase(.uppercase)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.leading, cellLeading)
-                .padding(.top, 4)
-            }
-
-            // Nhóm A/B/C…
-            ForEach(groupedKeys, id: \.self) { key in
-                Section {
-                    ForEach(filteredItemsByKey[key] ?? []) { network in
-                        NavigationLink {
-                            WiFiDetailView(item: network)
-                                .environmentObject(store)
-                        } label: {
-                            row(for: network)
-                        }
-                        // Card cùng lề trái với header
-                        .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                confirmDelete = network.id
-                            } label: { Label("Xóa", systemImage: "trash") }
-                            .tint(.red)
-                        }
+            // Gói lại để nhánh else vẫn trả về *một* view
+            Group {
+                // Header "ĐÃ LƯU" (chỉ một lần)
+                Section { } header: {
+                    HStack(spacing: 8) {
+                        savedStatusDot
+                        Text("ĐÃ LƯU")
+                            .textCase(.uppercase)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
-                } header: {
-                    Text(key)
-                        .textCase(.uppercase)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, cellLeading)
-                        .padding(.top, 2)
+                    .padding(.leading, cellLeading)
+                    .padding(.top, 4)
+                }
+
+                // Các nhóm A, B, C…
+                ForEach(groupedKeys, id: \.self) { key in
+                    Section {
+                        ForEach(filteredItemsByKey[key] ?? []) { network in
+                            NavigationLink {
+                                WiFiDetailView(item: network).environmentObject(store)
+                            } label: {
+                                row(for: network)
+                            }
+                            .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    confirmDelete = network.id
+                                } label: { Label("Xóa", systemImage: "trash") }
+                                .tint(.red)
+                            }
+                        }
+                    } header: {
+                        Text(key)
+                            .textCase(.uppercase)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, cellLeading)
+                            .padding(.top, 2)
+                    }
                 }
             }
         }
@@ -182,7 +184,7 @@ struct ContentView: View {
 
     private var savedStatusDot: some View {
         Circle()
-            .fill(hasSavedNetworks ? .green : .red) // có mạng đã lưu → xanh
+            .fill(hasSavedNetworks ? .green : .red)
             .frame(width: statusDotSize, height: statusDotSize)
     }
 
