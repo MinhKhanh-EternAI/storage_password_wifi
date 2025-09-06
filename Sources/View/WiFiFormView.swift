@@ -13,23 +13,34 @@ struct WiFiFormView: View {
         Form {
             // THÔNG TIN
             Section {
+                // TÊN
                 LabeledContent {
-                    TextField("", text: $item.ssid,
-                              prompt: Text("Tên mạng"))
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
-                        .multilineTextAlignment(.trailing)
+                    ZStack(alignment: .trailing) {
+                        if item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Tên mạng")
+                                .foregroundStyle(.tertiary)   // placeholder mờ
+                        }
+                        TextField("", text: $item.ssid)
+                            .multilineTextAlignment(.trailing) // text nằm bên phải
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                    }
                 } label: {
-                    Text("Tên").foregroundStyle(.primary)
+                    Text("Tên").foregroundStyle(.primary)       // nhãn đen cố định
                 }
 
+                // MẬT KHẨU
                 LabeledContent {
-                    SecureField("", text: passwordBinding,
-                                prompt: Text("Mật khẩu"))
-                        .textContentType(.password)
-                        .multilineTextAlignment(.trailing)
+                    ZStack(alignment: .trailing) {
+                        if (item.password ?? "").isEmpty {
+                            Text("Mật khẩu")
+                                .foregroundStyle(.tertiary)     // placeholder mờ
+                        }
+                        SecureField("", text: passwordBinding)
+                            .multilineTextAlignment(.trailing)
+                    }
                 } label: {
-                    Text("Mật khẩu").foregroundStyle(.primary)
+                    Text("Mật khẩu").foregroundStyle(.primary)  // nhãn đen cố định
                 }
             } header: {
                 Text("THÔNG TIN")
@@ -41,15 +52,22 @@ struct WiFiFormView: View {
             // BẢO MẬT
             Section {
                 NavigationLink {
-                    // ✅ Sửa label tham số: security:
                     SecurityPickerView(security: $item.security)
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        // ✅ Không dùng displayName (không tồn tại)
-                        //   In ra tên case hoặc bạn đổi bằng extension riêng nếu muốn.
-                        Text("\(item.security)")
+                        Text(item.security.rawValue)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                NavigationLink {
+                    SecurityPickerView(security: $item.security, privacy: $item.macPrivacy)
+                } label: {
+                    HStack {
+                        Text("Bảo mật")
+                        Spacer()
+                        Text(item.security.rawValue)        // hiện đúng tiếng Việt
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -60,6 +78,7 @@ struct WiFiFormView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
