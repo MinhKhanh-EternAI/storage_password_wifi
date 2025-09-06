@@ -15,8 +15,16 @@ final class CurrentWiFi: NSObject, CLLocationManagerDelegate {
     func fetchSSID(_ completion: @escaping (String?) -> Void) {
         DispatchQueue.main.async {
             self.waiters.append(completion)
-            let st = CLLocationManager.authorizationStatus()
-            if st == .notDetermined {
+
+            // Bỏ API deprecated: dùng instance property trên iOS 14+
+            let status: CLAuthorizationStatus
+            if #available(iOS 14.0, *) {
+                status = self.lm.authorizationStatus
+            } else {
+                status = CLLocationManager.authorizationStatus()
+            }
+
+            if status == .notDetermined {
                 self.lm.requestWhenInUseAuthorization()
                 return
             }
@@ -39,13 +47,24 @@ final class CurrentWiFi: NSObject, CLLocationManagerDelegate {
         cbs.forEach { $0(ssid) }
     }
 
-    func locationManager(_ manager: CLLocationManager,
-                         didChangeAuthorization status: CLAuthorizationStatus) {
-        // Khi user vừa cấp quyền, lấy lại SSID
+    // iOS 14+ delegate mới (khuyến nghị)
+    @available(iOS 14.0, *)
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
         if status == .authorizedAlways || status == .authorizedWhenInUse {
             resolveSSID()
         } else {
-            resolveSSID() // sẽ trả nil -> UI hiển thị trạng thái không khả dụng
+            resolveSSID() // trả nil -> UI hiển thị không khả dụng
+        }
+    }
+
+    // ✅ Giữ delegate cũ cho iOS < 14
+    func locationManager(_ manager: CLLocationManager,
+                         didChangeAuthorization status: CLAuthorizationStatus) {
+        if status == .authorizedAlways || status == .authorizedWhenInUse {
+            resolveSSID()
+        } else {
+            resolveSSID() // trả nil -> UI hiển thị không khả dụng
         }
     }
 }

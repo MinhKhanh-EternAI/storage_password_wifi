@@ -222,7 +222,12 @@ struct ContentView: View {
         showingAdd = true
         let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
-        UIApplication.shared.windows.first?.rootViewController?.present(hosting, animated: true)
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+        let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
+            root.present(hosting, animated: true)
+        }
     }
 
     private var filteredItems: [WiFiNetwork] {

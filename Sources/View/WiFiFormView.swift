@@ -16,13 +16,12 @@ struct WiFiFormView: View {
                 // TÊN
                 LabeledContent {
                     TextField(
-                        "",
+                        "",                       // không title để placeholder hiển thị
                         text: $item.ssid,
-                        prompt: Text("Tên mạng").foregroundStyle(.tertiary) // placeholder bên trái
+                        prompt: Text("Tên mạng")  // ⚠️ bỏ foregroundStyle để hợp iOS 16
                     )
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
-                    // không set .multilineTextAlignment(.trailing) để chữ bám trái
                 } label: {
                     Text("Tên").foregroundStyle(.primary)
                 }
@@ -32,9 +31,8 @@ struct WiFiFormView: View {
                     SecureField(
                         "",
                         text: passwordBinding,
-                        prompt: Text("Mật khẩu").foregroundStyle(.tertiary) // placeholder bên trái
+                        prompt: Text("Mật khẩu")  // ⚠️ bỏ foregroundStyle để hợp iOS 16
                     )
-                    // không set .multilineTextAlignment(.trailing)
                 } label: {
                     Text("Mật khẩu").foregroundStyle(.primary)
                 }
@@ -50,8 +48,7 @@ struct WiFiFormView: View {
                 NavigationLink {
                     SecurityPickerView(
                         security: $item.security,
-                        // ✅ Sửa tại đây: dùng field mới trong model
-                        privacy: $item.macPrivacy
+                        privacy: $item.macPrivacy   // dùng đúng field trong model
                     )
                 } label: {
                     HStack {
@@ -95,11 +92,9 @@ struct WiFiFormView: View {
     private func save() {
         switch mode {
         case .create:
-            // ✅ Không có store.add: thêm trực tiếp rồi sort
             store.items.append(item)
             store.sortInPlace()
         case .edit:
-            // ✅ Không có store.update: tự thay phần tử theo id
             if let i = store.items.firstIndex(where: { $0.id == item.id }) {
                 store.items[i] = item
                 store.sortInPlace()
