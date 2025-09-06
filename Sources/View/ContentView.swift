@@ -29,9 +29,9 @@ struct ContentView: View {
                                     .foregroundStyle(.secondary)
                                     .font(.footnote)
                             } else {
-                                Text("Wifi Hiện tại")
+                                Text("Không khả dụng")
                                     .font(.headline)
-                                Text("Mạng không khả dụng")
+                                Text("Vui lòng kết nối mạng")
                                     .foregroundStyle(.secondary)
                                     .font(.footnote)
                             }
@@ -105,8 +105,10 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("Wi-Fi")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Trái
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Picker("Giao diện", selection: $theme.mode) {
@@ -120,23 +122,25 @@ struct ContentView: View {
                                             "circle.lefthalf.filled")
                     }
                 }
+
+                // GIỮA (tiêu đề)
+                ToolbarItem(placement: .principal) {
+                    Text("Wi-Fi")
+                        .font(.headline)
+                        .fontWeight(.semibold)   // tuỳ chọn
+                        .lineLimit(1)
+                }
+
+                // Phải
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        // Thêm rỗng
-                        pathToForm(with: newItem())
-                    } label: {
+                    Button { pathToForm(with: newItem()) } label: {
                         Image(systemName: "plus")
                     }
                     Menu {
-                        Button {
-                            prepareExport()
-                            showingExporter = true
-                        } label: {
+                        Button { prepareExport(); showingExporter = true } label: {
                             Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
                         }
-                        Button {
-                            showingImporter = true
-                        } label: {
+                        Button { showingImporter = true } label: {
                             Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
                         }
                     } label: {
