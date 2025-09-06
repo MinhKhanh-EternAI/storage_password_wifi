@@ -60,19 +60,12 @@ struct WiFiDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    // Chia sẻ QR: ghi PNG ra file tạm rồi ShareLink(item: URL)
+                    // Chia sẻ QR qua file PNG tạm
                     if let url = QRExport(imageText: item.wifiQRString)
                         .makeTempFile(named: "WiFi-QR-\(item.ssid).png") {
                         ShareLink(item: url) {
                             Label("Chia sẻ QR", systemImage: "square.and.arrow.up")
                         }
-                    } else {
-                        // Fallback nếu tạo file lỗi
-                        Button {
-                            copied = true
-                        } label: {
-                            Label("Không tạo được QR", systemImage: "exclamationmark.triangle")
-                        }.disabled(true)
                     }
 
                     Button(role: .destructive) {

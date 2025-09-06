@@ -18,9 +18,7 @@ struct ToastModifier: ViewModifier {
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .onAppear {
                             DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-                                withAnimation {
-                                    isPresented = false
-                                }
+                                withAnimation { isPresented = false }
                             }
                         }
                 }
@@ -30,7 +28,6 @@ struct ToastModifier: ViewModifier {
 }
 
 extension View {
-    /// Hiển thị toast đơn giản ở trên cùng màn hình
     func toast(isPresented: Binding<Bool>, text: String, duration: Double = 1.5) -> some View {
         self.modifier(ToastModifier(isPresented: isPresented, text: text, duration: duration))
     }

@@ -1,43 +1,54 @@
-import SwiftUI
-import UniformTypeIdentifiers
+import Foundation
 import CoreImage.CIFilterBuiltins
 import UIKit
 
-/// Model dùng để chia sẻ ảnh QR qua ShareLink (iOS 16+) bằng Transferable
-struct QRExport: Identifiable, Transferable {
-    let id = UUID()
+/// Helper tạo PNG QR và ghi ra URL tạm để dùng với ShareLink(item: URL)
+struct QRExport {
     let imageText: String
-    let pngData: Data
 
-    init(imageText: String) {
-        self.imageText = imageText
-        self.pngData = QRExport.makeQRPNG(from: imageText) ?? Data()
-    }
+    /// Ghi PNG QR ra file tạm, trả về URL để dùng với ShareLink(item:)
+    func makeTempFile(named filename: String? = nil) -> URL? {
+        guard let data = Self.makeQRPNG(from: imageText) else { return nil }
 
-    // Cho phép ShareLink xuất dữ liệu PNG từ QRExport
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .png) { item in
-            item.pngData
+        let name = (filename ?? "WiFi-QR-\(Self.safeFileName(from: imageText)).png")
+            .replacingOccurrences(of: " ", with: "-")
+
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qr_share", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent(name)
+
+        try? FileManager.default.removeItem(at: url)
+        do {
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            print("QRExport write error:", error)
+            return nil
         }
-        .previewDisplayName(Text("Mã QR Wi-Fi"))
     }
 
-    /// Tạo ảnh PNG mã QR từ chuỗi (dùng CIQRCodeGenerator)
-    static func makeQRPNG(from string: String) -> Data? {
+    // MARK: - Private
+
+    /// Tạo PNG data từ chuỗi QR (CIQRCodeGenerator)
+    private static func makeQRPNG(from string: String) -> Data? {
         let data = Data(string.utf8)
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()
         filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("M", forKey: "inputCorrectionLevel") // H/L/M/Q
+        filter.setValue("M", forKey: "inputCorrectionLevel")
 
         guard let outputImage = filter.outputImage else { return nil }
 
-        // Scale để ảnh nét hơn
         let scale: CGFloat = 10
         let transformed = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
 
         guard let cgImage = context.createCGImage(transformed, from: transformed.extent) else { return nil }
         let uiImage = UIImage(cgImage: cgImage)
         return uiImage.pngData()
+    }
+
+    private static func safeFileName(from text: String) -> String {
+        let invalid = CharacterSet(charactersIn: "/\\?%*|\"<>:")
+        return text.components(separatedBy: invalid).joined()
     }
 }
