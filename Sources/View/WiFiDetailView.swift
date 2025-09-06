@@ -80,7 +80,7 @@ struct WiFiDetailView: View {
         }
         .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
             Button("Hủy", role: .cancel) {}
-            Button("Chắc chắn", role: .destructive) {
+            Button("Xóa", role: .destructive) {
                 store.delete(item.id)
                 dismiss()
             }

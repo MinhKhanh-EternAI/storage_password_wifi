@@ -92,7 +92,7 @@ struct ContentView: View {
             }
 
         } header: {
-            HStack {
+            HStack(spacing: 8) {
                 statusDot
                 Text("MẠNG HIỆN TẠI")
                     .textCase(.uppercase)
@@ -117,7 +117,7 @@ struct ContentView: View {
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
-                HStack {
+                HStack(spacing: 8) {
                     savedStatusDot            // 🔸 dùng dot riêng cho "ĐÃ LƯU"
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
@@ -145,7 +145,7 @@ struct ContentView: View {
                 } header: {
                     VStack(alignment: .leading, spacing: 2) {
                         if index == 0 {
-                            HStack {
+                            HStack(spacing: 8) {
                                 savedStatusDot    // 🔸 chấm trạng thái cho header đầu
                                 Text("ĐÃ LƯU")
                                     .textCase(.uppercase)

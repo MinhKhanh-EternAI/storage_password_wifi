@@ -1,52 +1,92 @@
 import SwiftUI
 
-enum FormMode {
-    case create
-    case edit
-}
-
 struct WiFiFormView: View {
+    enum Mode { case create, edit }
+    let mode: Mode
+
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var store: WiFiStore
 
-    let mode: FormMode
     @State var item: WiFiNetwork
 
     var body: some View {
         Form {
-            Section("THÔNG TIN") {
-                TextField("Tên", text: $item.ssid)
-                SecureField("Mật khẩu", text: Binding(
-                    get: { item.password ?? "" },
-                    set: { item.password = $0.isEmpty ? nil : $0 }
-                ))
+            // THÔNG TIN
+            Section {
+                // Nhãn bên trái (đen), trường nhập bên phải (placeholder xám)
+                LabeledContent {
+                    TextField("", text: $item.ssid,
+                              prompt: Text("Tên mạng"))
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .multilineTextAlignment(.trailing)
+                } label: {
+                    Text("Tên").foregroundStyle(.primary)
+                }
+
+                LabeledContent {
+                    SecureField("", text: passwordBinding,
+                                prompt: Text("Mật khẩu"))
+                        .textContentType(.password)
+                        .multilineTextAlignment(.trailing)
+                } label: {
+                    Text("Mật khẩu").foregroundStyle(.primary)
+                }
+
+            } header: {
+                Text("THÔNG TIN")
+                    .textCase(.uppercase)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
-            Section("BẢO MẬT") {
+            // BẢO MẬT
+            Section {
                 NavigationLink {
-                    SecurityPickerView(security: $item.security)
+                    SecurityPickerView(selection: $item.security)
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text(item.security.rawValue)
+                        Text(item.security.displayName)
                             .foregroundStyle(.secondary)
                     }
                 }
+            } header: {
+                Text("BẢO MẬT")
+                    .textCase(.uppercase)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle(mode == .create ? "Thêm Wi-Fi" : item.ssid)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .navigationBarLeading) {
                 Button("Hủy") { dismiss() }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Lưu") {
-                    store.upsert(item)
-                    dismiss()
-                }
-                .disabled(item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            ToolbarItem(placement: .principal) {
+                Text(mode == .create ? "Thêm Wi-Fi" : "Sửa Wi-Fi")
+                    .font(.system(size: 18, weight: .bold))
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Lưu") { save() }.bold()
             }
         }
+    }
+
+    // MARK: - Helpers
+    private var passwordBinding: Binding<String> {
+        Binding<String>(
+            get: { item.password ?? "" },
+            set: { item.password = $0.isEmpty ? nil : $0 }
+        )
+    }
+
+    private func save() {
+        switch mode {
+        case .create: store.add(item)
+        case .edit:   store.update(item)
+        }
+        dismiss()
     }
 }
