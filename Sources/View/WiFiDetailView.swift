@@ -1,5 +1,5 @@
 import SwiftUI
-import UIKit
+import UniformTypeIdentifiers
 
 struct WiFiDetailView: View {
     @EnvironmentObject var store: WiFiStore
@@ -7,72 +7,62 @@ struct WiFiDetailView: View {
 
     @State var item: WiFiNetwork
     @State private var showDeleteAlert = false
+    @State private var copied = false
 
     var body: some View {
-        Form {
+        List {
             Section("THÔNG TIN") {
                 TextField("Tên", text: $item.ssid)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                HStack(spacing: 8) {
-                    Text("Mật khẩu")
-                    Spacer()
-                    TextField("Mật khẩu", text: Binding(
+                HStack {
+                    SecureField("Mật khẩu", text: Binding(
                         get: { item.password ?? "" },
                         set: { item.password = $0.isEmpty ? nil : $0 }
                     ))
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .privacySensitive(true)
-                    .contextMenu {
-                        Button("Sao chép") { UIPasteboard.general.string = item.password ?? "" }
+                    if let pwd = item.password, !pwd.isEmpty {
+                        Button("Sao chép") {
+                            UIPasteboard.general.string = pwd
+                            copied = true
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
             }
 
             Section("BẢO MẬT") {
                 NavigationLink {
-                    SecurityPickerView(selection: $item.security)
+                    SecurityPickerView(security: $item.security)
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
                         Text(item.security.rawValue)
                             .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.tertiary)
                     }
                 }
             }
 
             Section("MÃ QR") {
-                QRCodeView(item: item)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .listRowBackground(Color.clear)
+                QRCodeView(text: item.wifiQRString)
+                    .frame(maxWidth: .infinity, minHeight: 220)
+                    .listRowInsets(EdgeInsets())
+                    .padding(.vertical, 4)
             }
 
             Section {
                 Button {
                     store.upsert(item)
-                    dismiss()
                 } label: {
                     Text("Lưu thông tin")
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
         }
-        .navigationTitle(item.ssid.isEmpty ? "Chi tiết Wi-Fi" : item.ssid)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(item.ssid)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button {
-                        shareQR()
-                    } label: {
-                        Label("Chia sẻ QR", systemImage: "qrcode")
+                    ShareLink(item: QRExport(imageText: item.wifiQRString)) {
+                        Label("Chia sẻ QR", systemImage: "square.and.arrow.up")
                     }
                     Button(role: .destructive) {
                         showDeleteAlert = true
@@ -84,55 +74,64 @@ struct WiFiDetailView: View {
                 }
             }
         }
-        .alert("Xóa mạng Wi-Fi?", isPresented: $showDeleteAlert) {
-            Button("Hủy", role: .cancel) { }
+        .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
+            Button("Hủy", role: .cancel) {}
             Button("Chắc chắn", role: .destructive) {
-                // KHÔNG gọi persist() (private); sửa danh sách để Store tự lưu (thường didSet)
-                if let idx = store.items.firstIndex(of: item) {
-                    store.items.remove(at: idx)
-                }
+                store.delete(item.id)
                 dismiss()
             }
-        } message: {
-            Text("Bạn có chắc chắn muốn xóa “\(item.ssid)”?")
         }
+        .toast(isPresented: $copied, text: "Đã sao chép mật khẩu")
     }
+}
 
-    private func shareQR() {
-        let str = QRCode.wifiString(
-            ssid: item.ssid,
-            password: item.password,
-            security: item.security // <-- truyền SecurityType, KHÔNG dùng rawValue
-        )
-        guard let img = QRCode.make(text: str, size: CGSize(width: 1024, height: 1024)) else { return }
-        let avc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = scene.windows.first {
-            window.rootViewController?.present(avc, animated: true)
+// MARK: - Share support
+
+import CoreImage.CIFilterBuiltins
+
+struct QRExport: Transferable {
+    let imageText: String
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .png) { qr in
+            let context = CIContext()
+            let filter = CIFilter.qrCodeGenerator()
+            filter.setValue(Data(qr.imageText.utf8), forKey: "inputMessage")
+            let img = filter.outputImage!.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+            let cgimg = context.createCGImage(img, from: img.extent)!
+            let ui = UIImage(cgImage: cgimg)
+            return ui.pngData()!
         }
     }
 }
 
-private struct QRCodeView: View {
-    let item: WiFiNetwork
-    var body: some View {
-        let str = QRCode.wifiString(
-            ssid: item.ssid,
-            password: item.password,
-            security: item.security // <-- truyền SecurityType
-        )
-        if let img = QRCode.make(text: str, size: CGSize(width: 600, height: 600)) {
-            Image(uiImage: img)
-                .resizable()
-                .scaledToFit()
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(UIColor.secondarySystemBackground))
-                )
-        } else {
-            Text("Không tạo được QR")
-                .foregroundStyle(.secondary)
+// MARK: - Tiny toast
+
+fileprivate struct ToastModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    let text: String
+
+    func body(content: Content) -> some View {
+        ZStack {
+            content
+            if isPresented {
+                Text(text)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .transition(.opacity)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                            withAnimation { isPresented = false }
+                        }
+                    }
+            }
         }
+        .animation(.easeInOut, value: isPresented)
+    }
+}
+
+fileprivate extension View {
+    func toast(isPresented: Binding<Bool>, text: String) -> some View {
+        modifier(ToastModifier(isPresented: isPresented, text: text))
     }
 }

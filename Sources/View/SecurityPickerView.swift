@@ -1,26 +1,60 @@
 import SwiftUI
 
-/// Picker chung để chọn kiểu bảo mật cho Wi-Fi.
-/// Lưu ý: Dựa theo model hiện tại, `SecurityType` là một enum top-level (không lồng trong WiFiNetwork).
 struct SecurityPickerView: View {
-    @Binding var selection: SecurityType
+    @Binding var security: SecurityType
 
     var body: some View {
         List {
-            ForEach(SecurityType.allCases, id: \.self) { opt in
+            Section {
+                NavigationLink {
+                    MACPrivacyPickerView()
+                } label: {
+                    HStack {
+                        Text("Địa chỉ Wi-Fi bảo mật")
+                        Spacer()
+                        Text("Tắt")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Section {
+                ForEach(SecurityType.allCases) { type in
+                    HStack {
+                        Text(type.rawValue)
+                        Spacer()
+                        if type == security {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { security = type }
+                }
+            }
+        }
+        .navigationTitle("Bảo mật")
+    }
+}
+
+struct MACPrivacyPickerView: View {
+    @State private var selected: MACAddressPrivacy = .off
+
+    var body: some View {
+        List {
+            ForEach(MACAddressPrivacy.allCases) { opt in
                 HStack {
-                    Text(opt.rawValue) // hiển thị rawValue của enum
+                    Text(opt.rawValue)
                     Spacer()
-                    if opt == selection {
+                    if opt == selected {
                         Image(systemName: "checkmark")
                             .foregroundStyle(.blue)
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { selection = opt }
+                .onTapGesture { selected = opt }
             }
         }
-        .navigationTitle("Bảo mật")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Địa chỉ Wi-Fi bảo mật")
     }
 }

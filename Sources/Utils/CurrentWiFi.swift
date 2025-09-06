@@ -1,36 +1,42 @@
 import Foundation
-import SystemConfiguration.CaptiveNetwork
 import CoreLocation
+import NetworkExtension
 
-class CurrentWiFi: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published var ssid: String? = nil
-    private let locationManager = CLLocationManager()
+final class CurrentWiFi: NSObject, CLLocationManagerDelegate {
+    private let location = CLLocationManager()
+    private var completion: ((String?) -> Void)?
 
-    override init() {
-        super.init()
-        locationManager.delegate = self
-        locationManager.requestWhenInUseAuthorization()
-        refresh()
-    }
+    func fetchSSID(_ completion: @escaping (String?) -> Void) {
+        self.completion = completion
 
-    func refresh() {
-        guard CLLocationManager.authorizationStatus() == .authorizedWhenInUse else {
-            ssid = nil
-            return
+        switch location.authorizationStatus {
+        case .notDetermined:
+            location.delegate = self
+            location.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            readSSID()
+        default:
+            completion(nil)
         }
-        if let ifaces = CNCopySupportedInterfaces() as? [String] {
-            for i in ifaces {
-                if let info = CNCopyCurrentNetworkInfo(i as CFString) as? [String: AnyObject],
-                   let s = info[kCNNetworkInfoKeySSID as String] as? String {
-                    ssid = s
-                    return
-                }
-            }
-        }
-        ssid = nil
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        refresh()
+        if manager.authorizationStatus == .authorizedWhenInUse ||
+            manager.authorizationStatus == .authorizedAlways {
+            readSSID()
+        } else {
+            completion?(nil)
+            completion = nil
+        }
+    }
+
+    private func readSSID() {
+        // NEHotspotNetwork.fetchCurrent hoạt động nếu app có quyền phù hợp.
+        NEHotspotNetwork.fetchCurrent { network in
+            DispatchQueue.main.async {
+                self.completion?(network?.ssid)
+                self.completion = nil
+            }
+        }
     }
 }

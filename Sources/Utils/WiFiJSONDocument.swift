@@ -7,9 +7,7 @@ struct WiFiJSONDocument: FileDocument, Identifiable {
     static var readableContentTypes: [UTType] { [.json] }
     static var writableContentTypes: [UTType] { [.json] }
 
-    // Cần có 'id' để conform Identifiable khi dùng .fileExporter(item:)
     var id = UUID()
-
     var networks: [WiFiNetwork]
 
     init(networks: [WiFiNetwork]) {

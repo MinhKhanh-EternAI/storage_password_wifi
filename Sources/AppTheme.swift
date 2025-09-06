@@ -1,23 +1,23 @@
 import SwiftUI
 
-enum AppTheme: String, CaseIterable, Identifiable {
-    case system, light, dark
-
+enum ThemeMode: String, CaseIterable, Identifiable {
+    case system = "Hệ thống"
+    case light = "Sáng"
+    case dark  = "Tối"
     var id: String { rawValue }
 
-    var icon: String {
+    var colorScheme: ColorScheme? {
         switch self {
-        case .system: return "circle.lefthalf.filled"
-        case .light: return "sun.max.fill"
-        case .dark: return "moon.fill"
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
         }
     }
+}
 
-    var display: String {
-        switch self {
-        case .system: return "Hệ thống"
-        case .light: return "Sáng"
-        case .dark: return "Tối"
-        }
+final class ThemeManager: ObservableObject {
+    @AppStorage("ThemeMode") var mode: ThemeMode = .system {
+        didSet { objectWillChange.send() }
     }
+    var overrideColorScheme: ColorScheme? { mode.colorScheme }
 }

@@ -1,6 +1,9 @@
 import SwiftUI
 
-enum FormMode { case create, edit }
+enum FormMode {
+    case create
+    case edit
+}
 
 struct WiFiFormView: View {
     @Environment(\.dismiss) private var dismiss
@@ -12,36 +15,27 @@ struct WiFiFormView: View {
     var body: some View {
         Form {
             Section("THÔNG TIN") {
-                TextField("Tên mạng", text: $item.ssid)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                TextField("Mật khẩu", text: Binding(
+                TextField("Tên", text: $item.ssid)
+                SecureField("Mật khẩu", text: Binding(
                     get: { item.password ?? "" },
                     set: { item.password = $0.isEmpty ? nil : $0 }
                 ))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .privacySensitive(true)
             }
 
             Section("BẢO MẬT") {
                 NavigationLink {
-                    SecurityPickerView(selection: $item.security) // <-- Binding<SecurityType>
+                    SecurityPickerView(security: $item.security)
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text(item.security.rawValue) // <-- hiển thị tên từ enum
+                        Text(item.security.rawValue)
                             .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.tertiary)
                     }
                 }
             }
         }
         .navigationTitle(mode == .create ? "Thêm Wi-Fi" : item.ssid)
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Hủy") { dismiss() }
@@ -51,7 +45,7 @@ struct WiFiFormView: View {
                     store.upsert(item)
                     dismiss()
                 }
-                .fontWeight(.semibold)
+                .disabled(item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }

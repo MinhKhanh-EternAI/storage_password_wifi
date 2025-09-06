@@ -1,51 +1,134 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Cho phép Store (nếu muốn) cung cấp hook tạo document export mà không buộc WiFiStore phải có sẵn property.
-// Nếu WiFiStore conform ExportDocumentProvider, ContentView sẽ dùng hook này; nếu không, rơi về export mặc định.
-protocol ExportDocumentProvider {
-    var exportDocument: (() -> WiFiJSONDocument)? { get }
-}
-
 struct ContentView: View {
     @EnvironmentObject var store: WiFiStore
+    @EnvironmentObject var theme: ThemeManager
 
     @State private var showingAdd = false
     @State private var showingExporter = false
     @State private var showingImporter = false
     @State private var exportDoc = WiFiJSONDocument(networks: [])
+    @State private var searchText = ""
+    @State private var confirmDelete: UUID?
+    private let currentWiFi = CurrentWiFi()
 
     var body: some View {
         NavigationStack {
-            listView
-                .navigationTitle("WiFi Offline")
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        EditButton()
+            List {
+                // Current network card
+                Section(header: Text("MẠNG HIỆN TẠI")) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(store.currentSSID ?? "Wifi Hiện tại")
+                                .font(.headline)
+                            Text("Đang kết nối")
+                                .foregroundStyle(.secondary)
+                                .font(.footnote)
+                        }
+                        Spacer()
+                        Button("Làm mới") { refreshSSID() }
+                            .buttonStyle(.borderless)
+                        Button {
+                            if let ssid = store.currentSSID {
+                                let new = WiFiNetwork(ssid: ssid, password: nil)
+                                // mở form với SSID đã có
+                                pathToForm(with: new)
+                            } else {
+                                // nếu không đọc được SSID vẫn mở form rỗng
+                                pathToForm(with: newItem())
+                            }
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.title3)
+                        }
                     }
-                    ToolbarItemGroup(placement: .topBarTrailing) {
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemBackground)))
+                }
+
+                // Saved list
+                Section(header: Text("ĐÃ LƯU")) {
+                    if filteredItems.isEmpty {
+                        emptyState
+                            .listRowBackground(Color.clear)
+                    } else {
+                        ForEach(groupedKeys, id: \.self) { key in
+                            Section(key) {
+                                ForEach(filteredItemsByKey[key] ?? []) { network in
+                                    NavigationLink {
+                                        WiFiDetailView(item: network)
+                                            .environmentObject(store)
+                                    } label: {
+                                        row(for: network)
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            confirmDelete = network.id
+                                        } label: {
+                                            Label("Xóa", systemImage: "trash")
+                                        }
+                                        .tint(.red)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Wi-Fi")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Picker("Giao diện", selection: $theme.mode) {
+                            ForEach(ThemeMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: theme.mode == .dark ? "moon.fill" :
+                                            theme.mode == .light ? "sun.max.fill" :
+                                            "circle.lefthalf.filled")
+                    }
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        // Thêm rỗng
+                        pathToForm(with: newItem())
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    Menu {
                         Button {
                             prepareExport()
                             showingExporter = true
                         } label: {
-                            Image(systemName: "square.and.arrow.up")
+                            Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
                         }
-
                         Button {
                             showingImporter = true
                         } label: {
-                            Image(systemName: "tray.and.arrow.down")
+                            Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
                         }
-
-                        Button {
-                            showingAdd = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
+            }
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
+            .onAppear { refreshSSID() }
+            .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
+                confirmDelete != nil
+            }, set: { v in
+                if !v { confirmDelete = nil }
+            })) {
+                Button("Hủy", role: .cancel) {}
+                Button("Chắc chắn", role: .destructive) {
+                    if let id = confirmDelete { store.delete(id) }
+                }
+            }
         }
-        // Export JSON
+        // Export
         .fileExporter(
             isPresented: $showingExporter,
             document: exportDoc,
@@ -53,59 +136,46 @@ struct ContentView: View {
             defaultFilename: "wifi_networks.json",
             onCompletion: { _ in }
         )
-        // Import JSON
-        .fileImporter(
-            isPresented: $showingImporter,
-            allowedContentTypes: [.json]
-        ) { result in
+        // Import
+        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
             handleImport(result)
-        }
-        // Thêm mới
-        .sheet(isPresented: $showingAdd) {
-            NavigationStack {
-                WiFiFormView(
-                    mode: .create,
-                    item: newItem()
-                )
-                .environmentObject(store)
-            }
         }
     }
 
-    // MARK: - Subviews
+    // MARK: - Helpers
 
-    private var listView: some View {
-        List {
-            if store.items.isEmpty {
-                emptyState
-            } else {
-                ForEach(store.items) { network in
-                    NavigationLink {
-                        WiFiDetailView(item: network)
-                            .environmentObject(store)
-                    } label: {
-                        row(for: network)
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-        }
+    private func pathToForm(with item: WiFiNetwork) {
+        showingAdd = true
+        // Present inline (sheet with NavigationStack)
+        // but to keep code simple, present immediately:
+        let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
+        let hosting = UIHostingController(rootView: NavigationStack { view })
+        UIApplication.shared.windows.first?.rootViewController?.present(hosting, animated: true)
+    }
+
+    private var filteredItems: [WiFiNetwork] {
+        let base = store.items
+        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return base }
+        return base.filter { $0.ssid.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    private var filteredItemsByKey: [String: [WiFiNetwork]] {
+        Dictionary(grouping: filteredItems, by: { $0.ssid.firstGroupKey })
+            .mapValues { $0.sorted { $0.ssid.localizedCaseInsensitiveCompare($1.ssid) == .orderedAscending } }
+    }
+
+    private var groupedKeys: [String] {
+        filteredItemsByKey.keys.sorted()
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        HStack(spacing: 12) {
             Image(systemName: "wifi.slash")
-                .font(.system(size: 40, weight: .regular))
-                .foregroundStyle(.secondary)
-            Text("Chưa có mạng nào")
-                .foregroundStyle(.secondary)
-            Text("Nhấn nút “+” để thêm mạng Wi-Fi.")
-                .font(.footnote)
+            Text("Chưa có mạng nào được lưu")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 32)
-        .listRowBackground(Color.clear)
+        .padding(.vertical, 16)
     }
 
     private func row(for item: WiFiNetwork) -> some View {
@@ -114,70 +184,78 @@ struct ContentView: View {
                 Text(item.ssid)
                     .font(.headline)
                 HStack(spacing: 8) {
+                    SecureDots(text: item.password ?? "")
+                    Text("•")
                     Text(item.security.rawValue)
-                        .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    if let pwd = item.password, !pwd.isEmpty {
-                        Text("• Có mật khẩu")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("• Mở")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+                        .font(.subheadline)
                 }
             }
             Spacer()
+            Image(systemName: "qrcode")
+                .foregroundStyle(.secondary)
             Image(systemName: "chevron.right")
                 .foregroundStyle(.tertiary)
         }
         .contentShape(Rectangle())
     }
 
-    // MARK: - Actions
-
-    private func deleteItems(at offsets: IndexSet) {
-        for index in offsets {
-            let id = store.items[index].id
-            store.items.removeAll { $0.id == id }
-        }
+    private func newItem() -> WiFiNetwork {
+        WiFiNetwork(ssid: "", password: nil)
     }
 
-    private func newItem() -> WiFiNetwork {
-        WiFiNetwork(
-            id: UUID(),
-            ssid: "",
-            password: nil,
-            security: SecurityType.allCases.first ?? SecurityType.allCases[0]
-        )
+    private func refreshSSID() {
+        currentWiFi.fetchSSID { ssid in
+            store.currentSSID = ssid
+        }
     }
 
     private func prepareExport() {
-        // Nếu Store có hook (conform ExportDocumentProvider) thì dùng, không thì export tất cả items hiện tại.
-        if let maker = (store as? ExportDocumentProvider)?.exportDocument {
-            exportDoc = maker()
-        } else {
-            exportDoc = WiFiJSONDocument(networks: store.items)
-        }
+        exportDoc = WiFiJSONDocument(networks: store.items)
     }
 
     private func handleImport(_ result: Result<URL, Error>) {
         guard case let .success(url) = result else { return }
-
         let needsStop = url.startAccessingSecurityScopedResource()
         defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
-
         do {
             let data = try Data(contentsOf: url)
             let imported = try JSONDecoder().decode([WiFiNetwork].self, from: data)
-            // Merge theo id
             var map = Dictionary(uniqueKeysWithValues: store.items.map { ($0.id, $0) })
             for n in imported { map[n.id] = n }
             store.items = Array(map.values)
-                .sorted { $0.ssid.localizedCaseInsensitiveCompare($1.ssid) == .orderedAscending }
+            store.sortInPlace()
         } catch {
             print("Import failed: \(error)")
         }
+    }
+}
+
+// MARK: - Small helpers
+
+private struct SecureDots: View {
+    let text: String
+    var body: some View {
+        if text.isEmpty {
+            Text("Mở")
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
+        } else {
+            Text(String(repeating: "•", count: max(6, text.count)))
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
+        }
+    }
+}
+
+private extension String {
+    var firstGroupKey: String {
+        guard let first = trimmingCharacters(in: .whitespacesAndNewlines).first else { return "#" }
+        let s = String(first).folding(options: .diacriticInsensitive, locale: .current)
+        let u = s.uppercased()
+        if u.range(of: "[A-Z0-9]", options: .regularExpression) != nil {
+            return u
+        }
+        return "#"
     }
 }

@@ -1,5 +1,22 @@
-import Foundation
+import CoreLocation
 
-// Nếu bạn không dùng file này ở đâu, có thể XÓA file khỏi target.
-// Mình để stub trống cho chắc, tránh lỗi compile do file tồn tại nhưng thiếu symbols.
-enum LocationService { }
+final class LocationService: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    @Published var status: CLAuthorizationStatus
+
+    override init() {
+        status = manager.authorizationStatus
+        super.init()
+        manager.delegate = self
+    }
+
+    func request() {
+        if status == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        status = manager.authorizationStatus
+    }
+}
