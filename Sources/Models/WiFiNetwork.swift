@@ -40,3 +40,28 @@ struct WiFiNetwork: Identifiable, Codable, Equatable {
         self.macPrivacy = macPrivacy
     }
 }
+
+// MARK: - QR text cho chuẩn WIFI:
+extension WiFiNetwork {
+    /// Chuỗi QR theo format: WIFI:T:<auth>;S:<ssid>;P:<password>;H:false;;
+    var wifiQRString: String {
+        let auth: String = {
+            switch security {
+            case .none: return "nopass"
+            case .wep: return "WEP"
+            default: return "WPA" // gộp WPA/WPA2/WPA3/Enterprise về WPA
+            }
+        }()
+
+        func escape(_ s: String) -> String {
+            s.replacingOccurrences(of: "\\", with: "\\\\")
+             .replacingOccurrences(of: ";", with: "\\;")
+             .replacingOccurrences(of: ",", with: "\\,")
+             .replacingOccurrences(of: ":", with: "\\:")
+        }
+
+        let s = escape(ssid)
+        let p = escape(password ?? "")
+        return "WIFI:T:\(auth);S:\(s);P:\(p);H:false;;"
+    }
+}
