@@ -26,7 +26,7 @@ struct WiFiNetwork: Identifiable, Codable, Equatable {
     var ssid: String
     var password: String?
     var security: SecurityType
-    var macPrivacy: MACAddressPrivacy
+    var privacy: MACAddressPrivacy?
 
     init(id: UUID = UUID(),
          ssid: String,

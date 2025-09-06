@@ -52,22 +52,18 @@ struct WiFiFormView: View {
             // BẢO MẬT
             Section {
                 NavigationLink {
-                    SecurityPickerView(security: $item.security)
+                    SecurityPickerView(
+                        security: $item.security,
+                        privacy: Binding(
+                            get: { item.privacy ?? .off },
+                            set: { item.privacy = $0 }
+                        )
+                    )
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
                         Text(item.security.rawValue)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                NavigationLink {
-                    SecurityPickerView(security: $item.security, privacy: $item.privacy)
-                } label: {
-                    HStack {
-                        Text("Bảo mật")
-                        Spacer()
-                        Text(item.security.rawValue)        // hiện đúng tiếng Việt
                             .foregroundStyle(.secondary)
                     }
                 }
