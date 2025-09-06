@@ -29,7 +29,7 @@ struct WiFiDetailView: View {
 
             Section("BẢO MẬT") {
                 NavigationLink {
-                    SecurityPickerView(security: $item.security)
+                    SecurityPickerView(security: $item.security, privacy: $item.macPrivacy)
                 } label: {
                     HStack {
                         Text("Bảo mật")
