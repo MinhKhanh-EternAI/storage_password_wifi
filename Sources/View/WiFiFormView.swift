@@ -41,15 +41,15 @@ struct WiFiFormView: View {
         .navigationTitle(mode == .create ? "Thêm Wi-Fi" : "Sửa Wi-Fi")
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItemGroup(placement: .topBarLeading) {   // 👈 wrap trong ToolbarItemGroup
                 Button("Hủy") { dismiss() }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Button("Lưu") {
                     if mode == .create {
                         store.add(item)
                     } else {
-                        store.update(item)
+                        store.upsert(item)   // 👈 đồng bộ với WiFiDetailView
                     }
                     dismiss()
                 }

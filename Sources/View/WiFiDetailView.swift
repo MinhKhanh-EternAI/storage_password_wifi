@@ -76,7 +76,7 @@ struct WiFiDetailView: View {
             Spacer()
             
             Button(action: {
-                store.update(item)
+                store.upsert(item)
                 dismiss()
             }) {
                 Text("Lưu thông tin")
