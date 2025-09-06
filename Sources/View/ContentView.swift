@@ -29,9 +29,9 @@ struct ContentView: View {
                                     .foregroundStyle(.secondary)
                                     .font(.footnote)
                             } else {
-                                Text("Không khả dụng")
+                                Text("Wifi Hiện tại")
                                     .font(.headline)
-                                Text("Vui lòng kết nối mạng")
+                                Text("Mạng không khả dụng")
                                     .foregroundStyle(.secondary)
                                     .font(.footnote)
                             }
