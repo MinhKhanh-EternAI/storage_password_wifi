@@ -69,12 +69,12 @@ struct ContentView: View {
                         Text(ssid).font(.headline)
                         Text("Đang kết nối")
                             .foregroundStyle(.secondary)
-                            .font(.footnote)
+                            .font(.callout)
                     } else {
                         Text("Không khả dụng").font(.headline)
                         Text("Vui lòng kết nối mạng")
                             .foregroundStyle(.secondary)
-                            .font(.footnote)
+                            .font(.callout)
                     }
                 }
                 Spacer()
@@ -97,13 +97,13 @@ struct ContentView: View {
                 statusDot
                 Text("MẠNG HIỆN TẠI")
                     .textCase(.uppercase)
-                    .font(.footnote)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     refreshSSID()
                 } label: {
-                    Label("Làm mới", systemImage: "arrow.clockwise").font(.footnote)
+                    Label("Làm mới", systemImage: "arrow.clockwise").font(.callout)
                 }
                 .buttonStyle(.borderless)
             }
@@ -122,7 +122,7 @@ struct ContentView: View {
                     savedStatusDot            // 🔸 dùng dot riêng cho "ĐÃ LƯU"
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
-                        .font(.footnote)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
@@ -150,7 +150,7 @@ struct ContentView: View {
                                 savedStatusDot    // 🔸 chấm trạng thái cho header đầu
                                 Text("ĐÃ LƯU")
                                     .textCase(.uppercase)
-                                    .font(.footnote)
+                                    .font(.callout)
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -164,7 +164,7 @@ struct ContentView: View {
     private var savedHeader: some View {
         HStack {
             Text("ĐÃ LƯU")
-                .font(.footnote)
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             Spacer()
@@ -334,7 +334,7 @@ private struct SecureDots: View {
         if text.isEmpty {
             Text("Mở")
                 .foregroundStyle(.secondary)
-                .font(.footnote)
+                .font(.callout)
         } else {
             Text(String(repeating: "●", count: max(6, text.count)))
                 .foregroundStyle(.secondary)
