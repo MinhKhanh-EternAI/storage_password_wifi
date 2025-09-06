@@ -125,7 +125,7 @@ struct ContentView: View {
                 // GIỮA (tiêu đề)
                 ToolbarItem(placement: .principal) {
                     Text("Wi-Fi")
-                        .font(.system(size: 20, weight: .bold)) // tăng size (20–24 là đẹp)
+                        .font(.system(size: 18, weight: .bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)                 // co lại chút nếu màn nhỏ
                 }
@@ -217,10 +217,6 @@ struct ContentView: View {
                     .font(.headline)
                 HStack(spacing: 8) {
                     SecureDots(text: item.password ?? "")
-                    Text("•")
-                    Text(item.security.rawValue)
-                        .foregroundStyle(.secondary)
-                        .font(.subheadline)
                 }
             }
             Spacer()
