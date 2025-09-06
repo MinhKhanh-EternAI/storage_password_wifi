@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct WiFiDetailView: View {
     @EnvironmentObject var store: WiFiStore
@@ -33,12 +34,12 @@ struct WiFiDetailView: View {
 
             Section("BẢO MẬT") {
                 NavigationLink {
-                    SecurityPickerView(selection: $item.security) // <-- Binding<SecurityType>
+                    SecurityPickerView(selection: $item.security)
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text(item.security.rawValue) // <-- hiển thị tên từ enum
+                        Text(item.security.rawValue)
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.right")
                             .foregroundStyle(.tertiary)
@@ -63,7 +64,7 @@ struct WiFiDetailView: View {
                 }
             }
         }
-        .navigationTitle(item.ssid)
+        .navigationTitle(item.ssid.isEmpty ? "Chi tiết Wi-Fi" : item.ssid)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -86,9 +87,9 @@ struct WiFiDetailView: View {
         .alert("Xóa mạng Wi-Fi?", isPresented: $showDeleteAlert) {
             Button("Hủy", role: .cancel) { }
             Button("Chắc chắn", role: .destructive) {
+                // KHÔNG gọi persist() (private); sửa danh sách để Store tự lưu (thường didSet)
                 if let idx = store.items.firstIndex(of: item) {
                     store.items.remove(at: idx)
-                    store.persist?()
                 }
                 dismiss()
             }
@@ -98,9 +99,11 @@ struct WiFiDetailView: View {
     }
 
     private func shareQR() {
-        let str = QRCode.wifiString(ssid: item.ssid,
-                                    password: item.password,
-                                    security: item.security.rawValue) // <-- dùng rawValue
+        let str = QRCode.wifiString(
+            ssid: item.ssid,
+            password: item.password,
+            security: item.security // <-- truyền SecurityType, KHÔNG dùng rawValue
+        )
         guard let img = QRCode.make(text: str, size: CGSize(width: 1024, height: 1024)) else { return }
         let avc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
         if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -113,9 +116,11 @@ struct WiFiDetailView: View {
 private struct QRCodeView: View {
     let item: WiFiNetwork
     var body: some View {
-        let str = QRCode.wifiString(ssid: item.ssid,
-                                    password: item.password,
-                                    security: item.security.rawValue) // <-- dùng rawValue
+        let str = QRCode.wifiString(
+            ssid: item.ssid,
+            password: item.password,
+            security: item.security // <-- truyền SecurityType
+        )
         if let img = QRCode.make(text: str, size: CGSize(width: 600, height: 600)) {
             Image(uiImage: img)
                 .resizable()
