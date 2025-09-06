@@ -17,34 +17,64 @@ struct ContentView: View {
         NavigationStack {
             List {
                 // Current network card
-                Section(header: Text("MẠNG HIỆN TẠI")) {
+                Section {
+                    // --- NỘI DUNG THẺ "MẠNG HIỆN TẠI" ---
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(store.currentSSID ?? "Wifi Hiện tại")
-                                .font(.headline)
-                            Text("Đang kết nối")
-                                .foregroundStyle(.secondary)
-                                .font(.footnote)
+                            if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                            !ssid.isEmpty {
+                                Text(ssid)
+                                    .font(.headline)
+                                Text("Đang kết nối")
+                                    .foregroundStyle(.secondary)
+                                    .font(.footnote)
+                            } else {
+                                Text("Wifi Hiện tại")
+                                    .font(.headline)
+                                Text("Mạng không khả dụng")
+                                    .foregroundStyle(.secondary)
+                                    .font(.footnote)
+                            }
                         }
                         Spacer()
-                        Button("Làm mới") { refreshSSID() }
-                            .buttonStyle(.borderless)
+                        // Giữ nút "+" trong card như cũ
                         Button {
-                            if let ssid = store.currentSSID {
-                                let new = WiFiNetwork(ssid: ssid, password: nil)
-                                // mở form với SSID đã có
-                                pathToForm(with: new)
+                            if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                            !ssid.isEmpty {
+                                pathToForm(with: WiFiNetwork(ssid: ssid, password: nil))
                             } else {
-                                // nếu không đọc được SSID vẫn mở form rỗng
                                 pathToForm(with: newItem())
                             }
                         } label: {
                             Image(systemName: "plus")
                                 .font(.title3)
                         }
+                        .buttonStyle(.borderless)
                     }
                     .padding(8)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemBackground)))
+                }
+                
+                header: {
+                    // --- HEADER TUỲ BIẾN: TIÊU ĐỀ + LÀM MỚI ---
+                    HStack {
+                        Text("MẠNG HIỆN TẠI")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)     // (tuỳ chọn) giữ kiểu chữ giống hệ thống
+                        Spacer()
+                        Button {
+                            refreshSSID()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Làm mới")
+                            }
+                            .font(.footnote)
+                        }
+                        .buttonStyle(.borderless)     // giúp button trong header List bấm mượt
+                    }
+                    .padding(.top, 4)                  // canh nhẹ cho đẹp
                 }
 
                 // Saved list
