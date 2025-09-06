@@ -263,7 +263,7 @@ struct ContentView: View {
                 Text(item.ssid)
                     .font(.headline)
                 HStack(spacing: 8) {
-                    SecureDots(text: item.password ?? "", font: .callout) // to hơn một chút
+                    SecureDots(text: item.password ?? "") // to hơn một chút
                 }
             }
             Spacer()
