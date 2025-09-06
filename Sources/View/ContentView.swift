@@ -30,7 +30,7 @@ struct ContentView: View {
                     if !v { confirmDelete = nil }
                 })) {
                     Button("Hủy", role: .cancel) {}
-                    Button("Chắc chắn", role: .destructive) {
+                    Button("Xóa", role: .destructive) {
                         if let id = confirmDelete { store.delete(id) }
                     }
                 }
@@ -91,7 +91,7 @@ struct ContentView: View {
                 .buttonStyle(.borderless)
             }
             .padding(.vertical, 10)
-            // .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))
+            
         } header: {
             HStack(spacing: 8) {
                 statusDot
@@ -118,7 +118,7 @@ struct ContentView: View {
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     savedStatusDot            // 🔸 dùng dot riêng cho "ĐÃ LƯU"
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
@@ -336,10 +336,9 @@ private struct SecureDots: View {
                 .foregroundStyle(.secondary)
                 .font(.footnote)
         } else {
-            Text(String(repeating: "●", count: max(6, text.count)))
+            Text(String(repeating: "•", count: max(6, text.count)))
                 .foregroundStyle(.secondary)
-                .font(.footnote)      // hoặc .callout nếu muốn to hơn chút
-                .kerning(1) 
+                .font(.footnote)
         }
     }
 }
