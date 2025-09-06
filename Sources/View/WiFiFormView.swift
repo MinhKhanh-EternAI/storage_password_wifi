@@ -32,7 +32,7 @@ struct WiFiFormView: View {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text("\(item.security)") // hiển thị đơn giản, tránh lệ thuộc enum case tên gì
+                        Text(item.security)
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.right")
                             .foregroundStyle(.tertiary)
@@ -48,7 +48,7 @@ struct WiFiFormView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Lưu") {
-                    store.upsert(item)     // dùng upsert để tránh lỗi dynamicMember/update
+                    store.upsert(item)
                     dismiss()
                 }
                 .fontWeight(.semibold)
@@ -57,23 +57,34 @@ struct WiFiFormView: View {
     }
 }
 
-// Picker đơn giản cho kiểu bảo mật (dựa trên CaseIterable nếu enum của bạn có)
-struct SecurityPickerView: View {
-    @Binding var selection: WiFiNetwork.SecurityType
+// Picker danh sách bảo mật dạng String (khớp model hiện tại)
+private struct SecurityPickerView: View {
+    @Binding var selection: String
+
+    static let options: [String] = [
+        "Không có",
+        "WEP",
+        "WPA",
+        "WPA2/WPA3",
+        "WPA3",
+        "WPA Doanh nghiệp",
+        "WPA2 Doanh nghiệp",
+        "WPA3 Doanh nghiệp"
+    ]
 
     var body: some View {
         List {
-            ForEach(WiFiNetwork.SecurityType.allCases, id: \.self) { sec in
+            ForEach(Self.options, id: \.self) { opt in
                 HStack {
-                    Text("\(sec)")
+                    Text(opt)
                     Spacer()
-                    if sec == selection {
+                    if opt == selection {
                         Image(systemName: "checkmark")
                             .foregroundStyle(.blue)
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { selection = sec }
+                .onTapGesture { selection = opt }
             }
         }
         .navigationTitle("Bảo mật")

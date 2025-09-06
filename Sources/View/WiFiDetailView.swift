@@ -5,8 +5,7 @@ struct WiFiDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State var item: WiFiNetwork
-    @State private var showMenu = false
-    @State private var showCopyHud = false
+    @State private var showDeleteAlert = false
 
     var body: some View {
         Form {
@@ -15,7 +14,7 @@ struct WiFiDetailView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
-                HStack {
+                HStack(spacing: 8) {
                     Text("Mật khẩu")
                     Spacer()
                     TextField("Mật khẩu", text: Binding(
@@ -27,7 +26,7 @@ struct WiFiDetailView: View {
                     .autocorrectionDisabled()
                     .privacySensitive(true)
                     .contextMenu {
-                        Button("Sao chép") { copyPassword() }
+                        Button("Sao chép") { UIPasteboard.general.string = item.password ?? "" }
                     }
                 }
             }
@@ -39,7 +38,7 @@ struct WiFiDetailView: View {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text("\(item.security)")
+                        Text(item.security)
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.right")
                             .foregroundStyle(.tertiary)
@@ -56,7 +55,7 @@ struct WiFiDetailView: View {
 
             Section {
                 Button {
-                    store.upsert(item)     // ✅ dùng upsert thay vì update (đã báo lỗi ở log)
+                    store.upsert(item)
                     dismiss()
                 } label: {
                     Text("Lưu thông tin")
@@ -75,7 +74,7 @@ struct WiFiDetailView: View {
                         Label("Chia sẻ QR", systemImage: "qrcode")
                     }
                     Button(role: .destructive) {
-                        store.confirmDelete(item)
+                        showDeleteAlert = true
                     } label: {
                         Label("Xóa", systemImage: "trash")
                     }
@@ -84,19 +83,24 @@ struct WiFiDetailView: View {
                 }
             }
         }
-    }
-
-    private func copyPassword() {
-        UIPasteboard.general.string = item.password ?? ""
-        showCopyHud = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { showCopyHud = false }
+        .alert("Xóa mạng Wi-Fi?", isPresented: $showDeleteAlert) {
+            Button("Hủy", role: .cancel) { }
+            Button("Chắc chắn", role: .destructive) {
+                if let idx = store.items.firstIndex(of: item) {
+                    store.items.remove(at: idx)
+                    store.persist?()
+                }
+                dismiss()
+            }
+        } message: {
+            Text("Bạn có chắc chắn muốn xóa “\(item.ssid)”?")
+        }
     }
 
     private func shareQR() {
         let str = QRCode.wifiString(ssid: item.ssid, password: item.password, security: item.security)
         guard let img = QRCode.make(text: str, size: CGSize(width: 1024, height: 1024)) else { return }
         let avc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
-
         if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = scene.windows.first {
             window.rootViewController?.present(avc, animated: true)
@@ -104,7 +108,6 @@ struct WiFiDetailView: View {
     }
 }
 
-// QR hiển thị đẹp (có padding + nền)
 private struct QRCodeView: View {
     let item: WiFiNetwork
     var body: some View {

@@ -1,5 +1,5 @@
 import SwiftUI
-import UniformTypeIdentifiers   // cần cho UTType.json khi import/export
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject var store: WiFiStore
@@ -8,6 +8,9 @@ struct ContentView: View {
     @State private var searchText: String = ""
     @State private var showImportSheet = false
     @State private var showExportSheet = false
+
+    // xác nhận xoá
+    @State private var pendingDelete: WiFiNetwork?
 
     var body: some View {
         NavigationStack {
@@ -19,8 +22,9 @@ struct ContentView: View {
                             .fontWeight(.semibold)
                         Spacer()
                         Button {
-                            // tạo bản ghi mới từ SSID hiện tại
-                            store.prepareAddCurrent()
+                            // nếu trong Store có luồng tạo nhanh thì gọi;
+                            // nếu không có, sheet thêm thủ công sẽ được mở ở dấu cộng phía trên
+                            store.prepareAddCurrent?()
                         } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 16, weight: .semibold))
@@ -39,7 +43,7 @@ struct ContentView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                     } else {
-                        ForEach(store.filteredItems(searchText)) { net in
+                        ForEach(store.filteredItems?(searchText) ?? store.items) { net in
                             NavigationLink {
                                 WiFiDetailView(item: net)
                             } label: {
@@ -54,13 +58,13 @@ struct ContentView: View {
                                         }
                                     }
                                     Spacer()
-                                    Image(systemName: "chevron.right") // mũi tên
+                                    Image(systemName: "chevron.right")
                                         .foregroundStyle(.tertiary)
                                 }
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
-                                    confirmDelete(net)
+                                    pendingDelete = net
                                 } label: {
                                     Label("Xóa", systemImage: "trash")
                                 }
@@ -72,19 +76,17 @@ struct ContentView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("Wi-Fi")
             .toolbar {
-                // icon chủ đề: mặt trời/mặt trăng
-                ToolbarItem(placement: .topBarLeading) {
-                    ThemePickerButton()
-                }
-                // dấu cộng (thêm thủ công)
+                // Dấu cộng (thêm thủ công)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        store.prepareAddManual()
+                        store.prepareAddManual?()    // nếu không có method này, không sao
+                        store.presentForm = true     // sheet hiển thị form (được store hay view tự xử lý)
                     } label: {
                         Image(systemName: "plus.circle")
                     }
                 }
-                // dấu ba chấm: Nhập / Xuất
+
+                // Dấu ba chấm: Nhập / Xuất
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
@@ -102,21 +104,8 @@ struct ContentView: View {
                     }
                 }
             }
-            // ô tìm kiếm ở cuối màn hình (kéo/ẩn tuỳ ý: đơn giản là đặt ở .safeAreaInset bottom)
-            .safeAreaInset(edge: .bottom) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                    TextField("Search", text: $searchText)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                .padding(10)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal)
-                .padding(.bottom, 6)
-            }
         }
-        // mở form tạo/sửa — KHÔNG truyền onSave nữa
+        // mở form (Form tự gọi store.upsert khi bấm Lưu)
         .sheet(isPresented: $store.presentForm) {
             NavigationStack {
                 WiFiFormView(
@@ -130,19 +119,27 @@ struct ContentView: View {
         .fileImporter(isPresented: $showImportSheet,
                       allowedContentTypes: [.json],
                       allowsMultipleSelection: false) { result in
-            store.handleImport(result: result)
+            store.handleImport?(result)
         }
         // Export JSON
         .fileExporter(isPresented: $showExportSheet,
-                      document: store.exportDocument(),
+                      document: store.exportDocument?() ?? WiFiJSONDocument(networks: store.items),
                       contentType: .json,
                       defaultFilename: "wifi_store") { result in
-            store.handleExport(result: result)
+            store.handleExport?(result)
         }
-    }
-
-    // Xác nhận xóa
-    private func confirmDelete(_ item: WiFiNetwork) {
-        store.confirmDelete(item)
+        // hỏi xoá
+        .alert("Xóa mạng Wi-Fi?", isPresented: .constant(pendingDelete != nil), presenting: pendingDelete) { item in
+            Button("Hủy", role: .cancel) { pendingDelete = nil }
+            Button("Chắc chắn", role: .destructive) {
+                if let idx = store.items.firstIndex(of: item) {
+                    store.items.remove(at: idx)
+                    store.persist?()        // nếu Store có hàm lưu, sẽ được gọi
+                }
+                pendingDelete = nil
+            }
+        } message: { item in
+            Text("Bạn có chắc chắn muốn xóa “\(item.ssid)”?")
+        }
     }
 }
