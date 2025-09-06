@@ -25,13 +25,12 @@ enum SecurityType: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Token `T:` trong chuẩn QR WIFI:...
     var qrAuthToken: String? {
         switch self {
         case .none: return "nopass"
         case .wep: return "WEP"
         case .wpa, .wpa2Wpa3, .wpa3: return "WPA"
-        case .wpaEnterprise, .wpa2Enterprise, .wpa3Enterprise: return "WPA" // QR không phân biệt enterprise
+        case .wpaEnterprise, .wpa2Enterprise, .wpa3Enterprise: return "WPA"
         }
     }
 }
@@ -42,7 +41,6 @@ enum AddressPrivacy: String, Codable, CaseIterable, Identifiable {
     case rotating
 
     var id: String { rawValue }
-
     var displayName: String {
         switch self {
         case .off: return "Tắt"

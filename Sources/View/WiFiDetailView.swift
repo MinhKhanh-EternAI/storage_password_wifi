@@ -1,16 +1,19 @@
 import SwiftUI
 
 struct WiFiDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+
     @State var item: WiFiNetwork
     var onUpdate: (WiFiNetwork) -> Void
     var onDelete: () -> Void
 
     @State private var qrImage: UIImage? = nil
     @State private var showShare = false
+    @State private var showEdit = false
 
     var body: some View {
         Form {
-            Section {
+            Section("Thông tin") {
                 HStack {
                     Text("Tên mạng").foregroundStyle(.secondary)
                     Spacer()
@@ -25,15 +28,16 @@ struct WiFiDetailView: View {
                             .contextMenu {
                                 Button {
                                     UIPasteboard.general.string = pass
-                                } label: { Label("Sao chép", systemImage: "doc.on.doc") }
+                                } label: {
+                                    Label("Sao chép", systemImage: "doc.on.doc")
+                                }
                             }
                     }
                 } else {
                     HStack {
                         Text("Mật khẩu").foregroundStyle(.secondary)
                         Spacer()
-                        Text("—")
-                            .foregroundStyle(.secondary)
+                        Text("—").foregroundStyle(.secondary)
                     }
                 }
                 HStack {
@@ -55,33 +59,45 @@ struct WiFiDetailView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: 220)
-                        .clipShape(Rectangle()) // khung vuông
+                        .clipShape(Rectangle())
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
-                Button {
-                    guard let img = qrImage else { return }
-                    let av = UIActivityViewController(activityItems: [img], applicationActivities: nil)
-                    UIApplication.shared.firstKeyWindow?.rootViewController?.present(av, animated: true)
-                } label: { Label("Chia sẻ mã QR", systemImage: "square.and.arrow.up") }
             }
         }
-        .navigationTitle("Chi tiết")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Thông tin")
         .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                NavigationLink {
-                    WiFiFormView(item: item) { updated in
-                        self.item = updated
-                        onUpdate(updated)
-                        rebuildQR()
-                    }
-                } label: { Image(systemName: "pencil") }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button {
+                        guard let img = qrImage else { return }
+                        let av = UIActivityViewController(activityItems: [img], applicationActivities: nil)
+                        UIApplication.shared.firstKeyWindow?.rootViewController?.present(av, animated: true)
+                    } label: { Label("Chia sẻ mã QR", systemImage: "square.and.arrow.up") }
 
-                Button(role: .destructive) {
-                    onDelete()
-                } label: { Image(systemName: "trash") }
+                    Button {
+                        showEdit = true
+                    } label: { Label("Sửa", systemImage: "pencil") }
+
+                    Button(role: .destructive) {
+                        onDelete()
+                        dismiss()
+                    } label: { Label("Xoá", systemImage: "trash") }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
             }
         }
         .onAppear { rebuildQR() }
+        .sheet(isPresented: $showEdit) {
+            NavigationStack {
+                WiFiFormView(mode: .edit, item: item) { updated in
+                    self.item = updated
+                    onUpdate(updated)
+                    rebuildQR()
+                }
+            }
+        }
     }
 
     private func rebuildQR() {

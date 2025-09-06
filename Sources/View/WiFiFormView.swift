@@ -1,8 +1,11 @@
 import SwiftUI
 
+enum FormMode { case add, edit }
+
 struct WiFiFormView: View {
     @Environment(\.dismiss) private var dismiss
 
+    let mode: FormMode
     @State var item: WiFiNetwork
     var onSave: (WiFiNetwork) -> Void
 
@@ -28,21 +31,25 @@ struct WiFiFormView: View {
                     }
                 }
                 Picker("Địa chỉ Wi-Fi bảo mật", selection: $item.addressPrivacy) {
-                    ForEach(AddressPrivacy.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
+                    ForEach(AddressPrivacy.allCases) { m in
+                        Text(m.displayName).tag(m)
                     }
                 }
             }
         }
-        .navigationTitle("Thêm/Sửa Wi-Fi")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(mode == .add ? "Thêm mạng" : "Sửa Wi-Fi")
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
+            ToolbarItem(placement: .navigationBarLeading) {
+                // Vừa có mũi tên back (hệ thống), vừa có "Huỷ" theo yêu cầu
                 Button("Huỷ") { dismiss() }
             }
-            ToolbarItem(placement: .confirmationAction) {
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Lưu") {
-                    onSave(item); dismiss()
-                }.disabled(item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    onSave(item)
+                    dismiss()
+                }
+                .disabled(item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }
