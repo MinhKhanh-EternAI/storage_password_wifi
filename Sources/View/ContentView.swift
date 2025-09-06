@@ -338,7 +338,8 @@ private struct SecureDots: View {
         } else {
             Text(String(repeating: "●", count: max(6, text.count)))
                 .foregroundStyle(.secondary)
-                .font(.caption2)
+                .font(.system(size: 8))
+                .tracking(2)
         }
     }
 }
