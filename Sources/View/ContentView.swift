@@ -63,7 +63,7 @@ struct ContentView: View {
         Section {
             // CARD "Mạng hiện tại"
             HStack {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 8) {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
                         Text(ssid).font(.headline)
@@ -92,7 +92,7 @@ struct ContentView: View {
             }
 
         } header: {
-            HStack(spacing: 8) {
+            HStack {
                 statusDot
                 Text("MẠNG HIỆN TẠI")
                     .textCase(.uppercase)
@@ -117,7 +117,7 @@ struct ContentView: View {
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
-                HStack(spacing: 8) {
+                HStack {
                     savedStatusDot            // 🔸 dùng dot riêng cho "ĐÃ LƯU"
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
@@ -145,7 +145,7 @@ struct ContentView: View {
                 } header: {
                     VStack(alignment: .leading, spacing: 2) {
                         if index == 0 {
-                            HStack(spacing: 8) {
+                            HStack {
                                 savedStatusDot    // 🔸 chấm trạng thái cho header đầu
                                 Text("ĐÃ LƯU")
                                     .textCase(.uppercase)
