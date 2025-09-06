@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct WiFiDetailView: View {
     @EnvironmentObject var store: WiFiStore
@@ -61,9 +60,11 @@ struct WiFiDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    // Chia sẻ ảnh QR (PNG) qua ShareLink với Transferable
                     ShareLink(item: QRExport(imageText: item.wifiQRString)) {
                         Label("Chia sẻ QR", systemImage: "square.and.arrow.up")
                     }
+
                     Button(role: .destructive) {
                         showDeleteAlert = true
                     } label: {
@@ -82,56 +83,5 @@ struct WiFiDetailView: View {
             }
         }
         .toast(isPresented: $copied, text: "Đã sao chép mật khẩu")
-    }
-}
-
-// MARK: - Share support
-
-import CoreImage.CIFilterBuiltins
-
-struct QRExport: Transferable {
-    let imageText: String
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .png) { qr in
-            let context = CIContext()
-            let filter = CIFilter.qrCodeGenerator()
-            filter.setValue(Data(qr.imageText.utf8), forKey: "inputMessage")
-            let img = filter.outputImage!.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-            let cgimg = context.createCGImage(img, from: img.extent)!
-            let ui = UIImage(cgImage: cgimg)
-            return ui.pngData()!
-        }
-    }
-}
-
-// MARK: - Tiny toast
-
-fileprivate struct ToastModifier: ViewModifier {
-    @Binding var isPresented: Bool
-    let text: String
-
-    func body(content: Content) -> some View {
-        ZStack {
-            content
-            if isPresented {
-                Text(text)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .transition(.opacity)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                            withAnimation { isPresented = false }
-                        }
-                    }
-            }
-        }
-        .animation(.easeInOut, value: isPresented)
-    }
-}
-
-fileprivate extension View {
-    func toast(isPresented: Binding<Bool>, text: String) -> some View {
-        modifier(ToastModifier(isPresented: isPresented, text: text))
     }
 }

@@ -1,48 +1,43 @@
 import SwiftUI
-import CoreImage
-import CoreImage.CIFilterBuiltins
 import UniformTypeIdentifiers
+import CoreImage.CIFilterBuiltins
+import UIKit
 
-/// Gói dữ liệu ảnh QR (PNG) để dùng với ShareLink
-struct QRExport: Identifiable {
+/// Model dùng để chia sẻ ảnh QR qua ShareLink (iOS 16+) bằng Transferable
+struct QRExport: Identifiable, Transferable {
     let id = UUID()
+    let imageText: String
     let pngData: Data
-    let filename: String
 
-    /// Khởi tạo từ chuỗi QR (ví dụ WIFI:... )
-    /// - Parameters:
-    ///   - imageText: Nội dung sẽ render thành mã QR
-    ///   - filename: Tên gợi ý khi share/save
-    init(imageText: String, filename: String = "wifi_qr.png") {
+    init(imageText: String) {
+        self.imageText = imageText
         self.pngData = QRExport.makeQRPNG(from: imageText) ?? Data()
-        self.filename = filename
     }
 
-    /// Tạo PNG từ chuỗi bằng Core Image (không phụ thuộc file QRCode.swift sẵn có)
-    private static func makeQRPNG(from string: String) -> Data? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(string.utf8)
-        filter.correctionLevel = "M"
+    // Cho phép ShareLink xuất dữ liệu PNG từ QRExport
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .png) { item in
+            item.pngData
+        }
+        .previewDisplayName(Text("Mã QR Wi-Fi"))
+    }
 
-        guard let output = filter.outputImage else { return nil }
-
-        // Phóng to mã QR cho nét (scale 10x)
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
-
+    /// Tạo ảnh PNG mã QR từ chuỗi (dùng CIQRCodeGenerator)
+    static func makeQRPNG(from string: String) -> Data? {
+        let data = Data(string.utf8)
         let context = CIContext()
-        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+        let filter = CIFilter.qrCodeGenerator()
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel") // H/L/M/Q
 
+        guard let outputImage = filter.outputImage else { return nil }
+
+        // Scale để ảnh nét hơn
+        let scale: CGFloat = 10
+        let transformed = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+
+        guard let cgImage = context.createCGImage(transformed, from: transformed.extent) else { return nil }
         let uiImage = UIImage(cgImage: cgImage)
         return uiImage.pngData()
-    }
-}
-
-/// Cho phép ShareLink xuất ra file PNG
-extension QRExport: Transferable {
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .png) { qr in
-            qr.pngData
-        }
-        .suggestedFileName { $0.filename }
     }
 }
