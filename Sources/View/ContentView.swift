@@ -303,6 +303,18 @@ struct ContentView: View {
             print("Import failed: \(error)")
         }
     }
+
+    private var isConnected: Bool {
+        if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+        !s.isEmpty { return true }
+        return false
+    }
+
+    private var statusDot: some View {
+        Circle()
+            .fill(isConnected ? Color.green : Color.red)
+            .frame(width: 8, height: 8)   // chấm nhỏ, tạo cảm giác “thụt” vào
+    }
 }
 
 // MARK: - Small helpers used in ContentView
@@ -347,14 +359,3 @@ extension View {
     }
 }
 
-private var isConnected: Bool {
-    if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
-       !s.isEmpty { return true }
-    return false
-}
-
-private var statusDot: some View {
-    Circle()
-        .fill(isConnected ? Color.green : Color.red)
-        .frame(width: 8, height: 8)   // chấm nhỏ, tạo cảm giác “thụt” vào
-}
