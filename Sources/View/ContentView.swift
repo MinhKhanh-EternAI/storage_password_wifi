@@ -106,7 +106,6 @@ struct ContentView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Trái
                 ToolbarItem(placement: .topBarLeading) {
@@ -126,9 +125,9 @@ struct ContentView: View {
                 // GIỮA (tiêu đề)
                 ToolbarItem(placement: .principal) {
                     Text("Wi-Fi")
-                        .font(.headline)
-                        .fontWeight(.semibold)   // tuỳ chọn
+                        .font(.system(size: 22, weight: .bold)) // tăng size (20–24 là đẹp)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)                 // co lại chút nếu màn nhỏ
                 }
 
                 // Phải
