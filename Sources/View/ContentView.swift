@@ -61,106 +61,128 @@ struct ContentView: View {
 
     private var currentNetworkSection: some View {
         Section {
-            // CARD "Mạng hiện tại"
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !ssid.isEmpty {
-                        Text(ssid).font(.headline)
-                        Text("Đang kết nối")
-                            .foregroundStyle(.secondary)
-                            .font(.footnote)
+                    if isConnected {
+                        Text(store.currentSSID!.trimmingCharacters(in: .whitespacesAndNewlines))
+                            .font(.headline)
+                        Text("Đang kết nối").foregroundStyle(.secondary).font(.footnote)
                     } else {
                         Text("Không khả dụng").font(.headline)
-                        Text("Vui lòng kết nối mạng")
-                            .foregroundStyle(.secondary)
-                            .font(.footnote)
+                        Text("Vui lòng kết nối mạng").foregroundStyle(.secondary).font(.footnote)
                     }
                 }
                 Spacer()
                 Button {
-                    if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !ssid.isEmpty {
-                        pathToForm(with: WiFiNetwork(ssid: ssid, password: nil))
+                    if isConnected {
+                        pathToForm(with: WiFiNetwork(ssid: store.currentSSID!.trimmingCharacters(in: .whitespacesAndNewlines), password: nil))
                     } else {
                         pathToForm(with: newItem())
                     }
-                } label: {
-                    Image(systemName: "plus").font(.title3)
-                }
+                } label: { Image(systemName: "plus").font(.title3) }
                 .buttonStyle(.borderless)
             }
-            .padding(.vertical, 10)                 // chỉ padding theo trục dọc, không co ngang
-            .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))            // giữ sạch separator
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            )
+            // **Quan trọng**: cho cell dùng cùng lề với List
+            .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
+            .listRowSeparator(.hidden)
         } header: {
-            // Header kiểu cũ (không overlay) để không chồng nhau
             HStack(spacing: 8) {
-                statusDot
+                Circle()
+                    .fill(isConnected ? .green : .red)
+                    .frame(width: statusDotSize, height: statusDotSize)
                 Text("MẠNG HIỆN TẠI")
-                    .textCase(.uppercase)
-                    .font(.footnote)                 // cùng size/màu như key H/N...
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Spacer()
-                Button {
-                    refreshSSID()
-                } label: {
+                Button(action: refreshSSID) {
                     Label("Làm mới", systemImage: "arrow.clockwise").font(.footnote)
                 }
                 .buttonStyle(.borderless)
             }
+            // **Cùng lề trái** với cell
+            .padding(.leading, cellLeading)
             .padding(.top, 4)
         }
     }
 
     @ViewBuilder
+
+    private var savedStatusDot: some View {
+        Circle()
+            .fill(hasSavedNetworks ? .green : .red) // xanh: có lưu, đỏ: chưa
+            .frame(width: statusDotSize, height: statusDotSize)
+    }
+
+
     private var savedListSection: some View {
         if filteredItems.isEmpty {
-            Section {
+            Section {   
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
                 HStack(spacing: 8) {
-                    statusDot
+                    savedStatusDot
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
+                .padding(.leading, cellLeading) // cùng lề trái
                 .padding(.top, 4)
             }
         } else {
-            // Mỗi chữ cái là Section top-level
-            ForEach(Array(groupedKeys.enumerated()), id: \.element) { index, key in
-                let items = filteredItemsByKey[key] ?? []
+            // Header "ĐÃ LƯU" (chỉ một lần)
+            Section { } header: {
+                HStack(spacing: 8) {
+                    savedStatusDot
+                    Text("ĐÃ LƯU")
+                        .textCase(.uppercase)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.leading, cellLeading) // cùng lề trái
+                .padding(.top, 4)
+            }
+
+            // Các nhóm A, B, C…
+            ForEach(groupedKeys, id: \.self) { key in
                 Section {
-                    ForEach(items) { network in
+                    ForEach(filteredItemsByKey[key] ?? []) { network in
                         NavigationLink {
-                            WiFiDetailView(item: network).environmentObject(store)
-                        } label: { row(for: network) }
+                            WiFiDetailView(item: network)
+                                .environmentObject(store)
+                        } label: {
+                            row(for: network)
+                        }
+                        // Giữ lề trái bằng card "Mạng hiện tại"
+                        .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) { confirmDelete = network.id } label: {
-                                Label("Xóa", systemImage: "trash")
-                            }.tint(.red)
+                            Button(role: .destructive) {
+                                confirmDelete = network.id
+                            } label: { Label("Xóa", systemImage: "trash") }
+                            .tint(.red)
                         }
                     }
                 } header: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if index == 0 {
-                            HStack(spacing: 8) {
-                                statusDot
-                                Text("ĐÃ LƯU")
-                                    .textCase(.uppercase)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Text(key).textCase(.uppercase)
-                    }
+                    Text(key)
+                        .textCase(.uppercase)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, cellLeading) // cùng lề trái
+                        .padding(.top, 2)
                 }
             }
         }
     }
+
 
     private var savedHeader: some View {
         HStack {
@@ -285,7 +307,7 @@ struct ContentView: View {
     }
 
     private func prepareExport() {
-        exportDoc = WiFiJSONDocument(networks: store.items)
+        exportDoc = WiFiJSONDocument(networks: store.item   s)
     }
 
     private func handleImport(_ result: Result<URL, Error>) {
@@ -352,10 +374,21 @@ extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
-            self.listSectionSpacing(spacing)   // hoặc .listSectionSpacing(.compact)
+            self.listSectionSpacing(6)   // hoặc .listSectionSpacing(.compact)
         } else {
             self
         }
     }
 }
 
+
+// MARK: - Layout constants & state helpers
+private let cellLeading: CGFloat = 16        // lề chuẩn của List .insetGrouped
+private let statusDotSize: CGFloat = 6
+
+private var isConnected: Bool {
+    if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !s.isEmpty { return true }
+    return false
+}
+private var hasSavedNetworks: Bool { !store.items.isEmpty }
