@@ -43,7 +43,7 @@ struct ContentView: View {
             defaultFilename: "wifi_networks.json",
             onCompletion: { _ in }
         )
-        // Import (.json / .js / .txt)
+        // Import (.json / .js / .txt) — dùng overload trả Result<[URL], Error>
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: [UTType.json, UTType.text, UTType.plainText],
@@ -122,7 +122,7 @@ struct ContentView: View {
                     .listRowBackground(Color.clear)
             } header: {
                 HStack(spacing: 8) {
-                    savedStatusDot            // 🔸 dot cho "ĐÃ LƯU"
+                    savedStatusDot
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
                         .font(.footnote)
@@ -297,60 +297,66 @@ struct ContentView: View {
 
     // MARK: - Import (.json / .js / .txt)
 
-    private func handleImport(_ result: Result<URL, Error>) {
-        guard case let .success(url) = result else { return }
-        let needsStop = url.startAccessingSecurityScopedResource()
-        defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
+    private func handleImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let needsStop = url.startAccessingSecurityScopedResource()
+            defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
 
-        do {
-            let rawData = try Data(contentsOf: url)
-            let ext = url.pathExtension.lowercased()
+            do {
+                let rawData = try Data(contentsOf: url)
+                let ext = url.pathExtension.lowercased()
 
-            // Nếu .js / .txt: lột JS wrapper để lấy JSON thuần
-            let dataForDecode: Data
-            if ["js", "txt"].contains(ext) {
-                guard let text = String(data: rawData, encoding: .utf8) else {
-                    throw ImportError.invalidEncoding
+                // Nếu .js / .txt: lột JS wrapper để lấy JSON thuần
+                let dataForDecode: Data
+                if ["js", "txt"].contains(ext) {
+                    guard let text = String(data: rawData, encoding: .utf8) else {
+                        throw ImportError.invalidEncoding
+                    }
+                    let jsonString = extractJSON(from: text)
+                    guard let jsonData = jsonString.data(using: .utf8) else {
+                        throw ImportError.invalidEncoding
+                    }
+                    dataForDecode = jsonData
+                } else {
+                    dataForDecode = rawData
                 }
-                let jsonString = extractJSON(from: text)
-                guard let jsonData = jsonString.data(using: .utf8) else {
-                    throw ImportError.invalidEncoding
+
+                // Thử decode [WiFiNetwork] hoặc { "items": [...] }
+                let decoder = JSONDecoder()
+                var imported: [WiFiNetwork]?
+
+                if let arr = try? decoder.decode([WiFiNetwork].self, from: dataForDecode) {
+                    imported = arr
+                } else {
+                    struct Wrapper: Codable { let items: [WiFiNetwork] }
+                    if let wrap = try? decoder.decode(Wrapper.self, from: dataForDecode) {
+                        imported = wrap.items
+                    }
                 }
-                dataForDecode = jsonData
-            } else {
-                dataForDecode = rawData
+
+                guard let list = imported, !list.isEmpty else {
+                    throw ImportError.empty
+                }
+
+                // Merge & sort
+                merge(list)
+                store.sortInPlace()
+
+            } catch {
+                print("Import failed:", error.localizedDescription)
             }
 
-            // Thử decode [WiFiNetwork] hoặc { "items": [...] }
-            let decoder = JSONDecoder()
-            var imported: [WiFiNetwork]?
-
-            if let arr = try? decoder.decode([WiFiNetwork].self, from: dataForDecode) {
-                imported = arr
-            } else {
-                struct Wrapper: Codable { let items: [WiFiNetwork] }
-                if let wrap = try? decoder.decode(Wrapper.self, from: dataForDecode) {
-                    imported = wrap.items
-                }
-            }
-
-            guard let list = imported, !list.isEmpty else {
-                throw ImportError.empty
-            }
-
-            // Merge vào store.items
-            merge(list)
-            store.sortInPlace()
-
-        } catch {
-            print("Import failed:", error.localizedDescription)
+        case .failure(let err):
+            print("Picker error:", err.localizedDescription)
         }
     }
 
-    // Bóc JSON từ text có thể có JS wrapper (const data = [...]; / export default [...])
+    // Bóc JSON từ text có JS wrapper (const data = [...]; / export default [...])
     private func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.first == "[" || trimmed.first == "{" {
+        if let first = trimmed.first, first == "[" || first == "{" {
             return trimmed
         }
         if let s = trimmed.firstIndex(of: "["),
@@ -407,8 +413,7 @@ struct ContentView: View {
             .frame(width: 8, height: 8)
     }
 
-    // 🔸 Chấm trạng thái riêng cho "ĐÃ LƯU"
-    // Cam nếu KHÔNG có mạng lưu, Xanh nếu có.
+    // Chấm trạng thái riêng cho "ĐÃ LƯU"
     private var savedStatusDot: some View {
         Circle()
             .fill(hasSavedNetworks ? Color.green : Color.orange)
