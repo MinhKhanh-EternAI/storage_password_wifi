@@ -106,7 +106,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Wi-Fi")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
@@ -121,15 +121,6 @@ struct ContentView: View {
                                             "circle.lefthalf.filled")
                     }
                 }
-
-                ToolbarItem(placement: .principal) {
-                    Text("Wi-Fi")
-                        .font(.headline)
-                        .fontWeight(.semibold)   // tuỳ chọn
-                        .lineLimit(1)
-                }
-
-
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
                         // Thêm rỗng
@@ -245,10 +236,7 @@ struct ContentView: View {
 
     private func refreshSSID() {
         currentWiFi.fetchSSID { ssid in
-            DispatchQueue.main.async {
-                print("SSID fetched:", ssid ?? "nil")
-                store.currentSSID = ssid
-            }
+            store.currentSSID = ssid
         }
     }
 
