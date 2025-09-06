@@ -43,8 +43,12 @@ struct ContentView: View {
             defaultFilename: "wifi_networks.json",
             onCompletion: { _ in }
         )
-        // Import
-        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
+        // Import (.json / .js / .txt)
+        .fileImporter(
+            isPresented: $showingImporter,
+            allowedContentTypes: [UTType.json, UTType.text, UTType.plainText],
+            allowsMultipleSelection: false
+        ) { result in
             handleImport(result)
         }
     }
@@ -118,7 +122,7 @@ struct ContentView: View {
                     .listRowBackground(Color.clear)
             } header: {
                 HStack(spacing: 8) {
-                    savedStatusDot            // 🔸 dùng dot riêng cho "ĐÃ LƯU"
+                    savedStatusDot            // 🔸 dot cho "ĐÃ LƯU"
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
                         .font(.footnote)
@@ -146,7 +150,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         if index == 0 {
                             HStack(spacing: 8) {
-                                savedStatusDot    // 🔸 chấm trạng thái cho header đầu
+                                savedStatusDot
                                 Text("ĐÃ LƯU")
                                     .textCase(.uppercase)
                                     .font(.footnote)
@@ -225,7 +229,7 @@ struct ContentView: View {
         if let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive }),
-        let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
+           let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
             root.present(hosting, animated: true)
         }
     }
@@ -291,20 +295,103 @@ struct ContentView: View {
         exportDoc = WiFiJSONDocument(networks: store.items)
     }
 
+    // MARK: - Import (.json / .js / .txt)
+
     private func handleImport(_ result: Result<URL, Error>) {
         guard case let .success(url) = result else { return }
         let needsStop = url.startAccessingSecurityScopedResource()
         defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
+
         do {
-            let data = try Data(contentsOf: url)
-            let imported = try JSONDecoder().decode([WiFiNetwork].self, from: data)
-            var map = Dictionary(uniqueKeysWithValues: store.items.map { ($0.id, $0) })
-            for n in imported { map[n.id] = n }
-            store.items = Array(map.values)
+            let rawData = try Data(contentsOf: url)
+            let ext = url.pathExtension.lowercased()
+
+            // Nếu .js / .txt: lột JS wrapper để lấy JSON thuần
+            let dataForDecode: Data
+            if ["js", "txt"].contains(ext) {
+                guard let text = String(data: rawData, encoding: .utf8) else {
+                    throw ImportError.invalidEncoding
+                }
+                let jsonString = extractJSON(from: text)
+                guard let jsonData = jsonString.data(using: .utf8) else {
+                    throw ImportError.invalidEncoding
+                }
+                dataForDecode = jsonData
+            } else {
+                dataForDecode = rawData
+            }
+
+            // Thử decode [WiFiNetwork] hoặc { "items": [...] }
+            let decoder = JSONDecoder()
+            var imported: [WiFiNetwork]?
+
+            if let arr = try? decoder.decode([WiFiNetwork].self, from: dataForDecode) {
+                imported = arr
+            } else {
+                struct Wrapper: Codable { let items: [WiFiNetwork] }
+                if let wrap = try? decoder.decode(Wrapper.self, from: dataForDecode) {
+                    imported = wrap.items
+                }
+            }
+
+            guard let list = imported, !list.isEmpty else {
+                throw ImportError.empty
+            }
+
+            // Merge vào store.items
+            merge(list)
             store.sortInPlace()
+
         } catch {
-            print("Import failed: \(error)")
+            print("Import failed:", error.localizedDescription)
         }
+    }
+
+    // Bóc JSON từ text có thể có JS wrapper (const data = [...]; / export default [...])
+    private func extractJSON(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.first == "[" || trimmed.first == "{" {
+            return trimmed
+        }
+        if let s = trimmed.firstIndex(of: "["),
+           let e = trimmed.lastIndex(of: "]"), s < e {
+            return String(trimmed[s...e])
+        }
+        if let s = trimmed.firstIndex(of: "{"),
+           let e = trimmed.lastIndex(of: "}"), s < e {
+            return String(trimmed[s...e])
+        }
+        return trimmed // để lỗi decode báo ra
+    }
+
+    // Gộp: ưu tiên trùng id, nếu không có id trùng thì ghép theo ssid (normalize)
+    private func merge(_ incoming: [WiFiNetwork]) {
+        var indexByID: [UUID: Int] = [:]
+        var indexBySSID: [String: Int] = [:]
+        for (i, it) in store.items.enumerated() {
+            indexByID[it.id] = i
+            indexBySSID[norm(it.ssid)] = i
+        }
+
+        for nw in incoming {
+            if let idx = indexByID[nw.id] {
+                store.items[idx] = nw
+            } else if let idx = indexBySSID[norm(nw.ssid)] {
+                store.items[idx] = nw
+            } else {
+                store.items.append(nw)
+            }
+        }
+    }
+
+    private func norm(_ s: String) -> String {
+        s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    // Hỗ trợ báo lỗi import
+    private enum ImportError: Error {
+        case invalidEncoding
+        case empty
     }
 
     private var isConnected: Bool {
@@ -337,7 +424,7 @@ private struct SecureDots: View {
     let text: String
     var body: some View {
         if text.isEmpty {
-            Text("Không bao mật")
+            Text("Không bảo mật")
                 .foregroundStyle(.secondary)
                 .font(.footnote)
         } else {
