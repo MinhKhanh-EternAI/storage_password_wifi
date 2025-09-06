@@ -2,14 +2,14 @@ import SwiftUI
 
 @main
 struct WiFiOfflineApp: App {
-    @AppStorage("appearance") private var appearanceRaw: String = AppearanceMode.system.rawValue
+    @StateObject private var store = WiFiStore()
+    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(
-                    (AppearanceMode(rawValue: appearanceRaw) ?? .system).scheme
-                )
+                .environmentObject(store)
+                .preferredColorScheme(themeMode.colorScheme)
         }
     }
 }
