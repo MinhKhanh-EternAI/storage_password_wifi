@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Kiểu bảo mật
 enum SecurityType: String, CaseIterable, Codable, Identifiable {
     case none = "Không có"
     case wep = "WEP"
@@ -13,6 +14,7 @@ enum SecurityType: String, CaseIterable, Codable, Identifiable {
     var id: String { rawValue }
 }
 
+// MARK: - Chính sách địa chỉ MAC
 enum MACAddressPrivacy: String, CaseIterable, Codable, Identifiable {
     case off = "Tắt"
     case fixed = "Cố định"
@@ -21,35 +23,58 @@ enum MACAddressPrivacy: String, CaseIterable, Codable, Identifiable {
     var id: String { rawValue }
 }
 
+// MARK: - Mô hình mạng Wi-Fi
 struct WiFiNetwork: Identifiable, Codable, Equatable {
     var id: UUID
     var ssid: String
     var password: String?
     var security: SecurityType
-    var privacy: MACAddressPrivacy?
+    /// Chính sách địa chỉ MAC (random hóa MAC). Mặc định .off để tương thích JSON cũ.
+    var macPrivacy: MACAddressPrivacy
 
-    init(id: UUID = UUID(),
-         ssid: String,
-         password: String?,
-         security: SecurityType = .wpa2wpa3,
-         macPrivacy: MACAddressPrivacy = .off) {
+    // Init thuận tiện cho code nội bộ
+    init(
+        id: UUID = UUID(),
+        ssid: String,
+        password: String?,
+        security: SecurityType = .wpa2wpa3,
+        macPrivacy: MACAddressPrivacy = .off
+    ) {
         self.id = id
         self.ssid = ssid
         self.password = password
         self.security = security
         self.macPrivacy = macPrivacy
     }
+
+    // MARK: - Decodable tùy biến để không vỡ dữ liệu JSON cũ
+    private enum CodingKeys: String, CodingKey {
+        case id, ssid, password, security, macPrivacy
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // Nếu file JSON cũ không có id -> tạo mới
+        self.id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        // ssid nên có; nếu không có thì để chuỗi rỗng để không vỡ decode
+        self.ssid = try c.decodeIfPresent(String.self, forKey: .ssid) ?? ""
+        self.password = try c.decodeIfPresent(String.self, forKey: .password)
+        // Thiếu security trong JSON cũ -> mặc định WPA2/WPA3
+        self.security = try c.decodeIfPresent(SecurityType.self, forKey: .security) ?? .wpa2wpa3
+        // JSON cũ không có macPrivacy -> mặc định .off
+        self.macPrivacy = try c.decodeIfPresent(MACAddressPrivacy.self, forKey: .macPrivacy) ?? .off
+    }
 }
 
-// MARK: - QR text cho chuẩn WIFI:
+// MARK: - QR text chuẩn WIFI:
 extension WiFiNetwork {
     /// Chuỗi QR theo format: WIFI:T:<auth>;S:<ssid>;P:<password>;H:false;;
     var wifiQRString: String {
         let auth: String = {
             switch security {
             case .none: return "nopass"
-            case .wep: return "WEP"
-            default: return "WPA" // gộp WPA/WPA2/WPA3/Enterprise về WPA
+            case .wep:  return "WEP"
+            default:    return "WPA" // gộp WPA/WPA2/WPA3/Enterprise về WPA
             }
         }()
 

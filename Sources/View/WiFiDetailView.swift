@@ -31,10 +31,8 @@ struct WiFiDetailView: View {
                 NavigationLink {
                     SecurityPickerView(
                         security: $item.security,
-                        privacy: Binding(
-                            get: { item.privacy ?? .off },
-                            set: { item.privacy = $0 }
-                        )
+                        // ✅ Sửa tại đây: dùng field đúng trong model
+                        privacy: $item.macPrivacy
                     )
                 } label: {
                     HStack {
