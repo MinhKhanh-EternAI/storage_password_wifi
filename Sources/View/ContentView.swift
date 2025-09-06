@@ -307,7 +307,7 @@ struct ContentView: View {
     }
 
     private func prepareExport() {
-        exportDoc = WiFiJSONDocument(networks: store.item   s)
+        exportDoc = WiFiJSONDocument(networks: store.items)
     }
 
     private func handleImport(_ result: Result<URL, Error>) {
