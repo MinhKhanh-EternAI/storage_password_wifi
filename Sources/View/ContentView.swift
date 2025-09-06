@@ -1,6 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+// Cho phép Store (nếu muốn) cung cấp hook tạo document export mà không buộc WiFiStore phải có sẵn property.
+// Nếu WiFiStore conform ExportDocumentProvider, ContentView sẽ dùng hook này; nếu không, rơi về export mặc định.
+protocol ExportDocumentProvider {
+    var exportDocument: (() -> WiFiJSONDocument)? { get }
+}
+
 struct ContentView: View {
     @EnvironmentObject var store: WiFiStore
 
@@ -132,7 +138,6 @@ struct ContentView: View {
     // MARK: - Actions
 
     private func deleteItems(at offsets: IndexSet) {
-        // Xoá item khỏi store (Store của bạn sẽ persist theo cách riêng)
         for index in offsets {
             let id = store.items[index].id
             store.items.removeAll { $0.id == id }
@@ -149,8 +154,8 @@ struct ContentView: View {
     }
 
     private func prepareExport() {
-        // Giữ hook cũ: nếu Store cung cấp maker() thì dùng, ngược lại export toàn bộ items
-        if let maker = store.exportDocument {
+        // Nếu Store có hook (conform ExportDocumentProvider) thì dùng, không thì export tất cả items hiện tại.
+        if let maker = (store as? ExportDocumentProvider)?.exportDocument {
             exportDoc = maker()
         } else {
             exportDoc = WiFiJSONDocument(networks: store.items)
@@ -160,23 +165,18 @@ struct ContentView: View {
     private func handleImport(_ result: Result<URL, Error>) {
         guard case let .success(url) = result else { return }
 
-        // Với URL từ fileImporter, nên xin quyền truy cập (sandbox) để đọc chắc chắn
         let needsStop = url.startAccessingSecurityScopedResource()
-        defer {
-            if needsStop { url.stopAccessingSecurityScopedResource() }
-        }
+        defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
 
         do {
             let data = try Data(contentsOf: url)
             let imported = try JSONDecoder().decode([WiFiNetwork].self, from: data)
-
-            // Merge đơn giản: thêm mới / cập nhật theo id
+            // Merge theo id
             var map = Dictionary(uniqueKeysWithValues: store.items.map { ($0.id, $0) })
             for n in imported { map[n.id] = n }
             store.items = Array(map.values)
                 .sorted { $0.ssid.localizedCaseInsensitiveCompare($1.ssid) == .orderedAscending }
         } catch {
-            // Có thể thêm UI báo lỗi nếu bạn muốn
             print("Import failed: \(error)")
         }
     }
