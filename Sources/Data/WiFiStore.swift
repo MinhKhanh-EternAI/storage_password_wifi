@@ -2,11 +2,9 @@ import Foundation
 import Combine
 
 final class WiFiStore: ObservableObject {
-    @Published private(set) var items: [WiFiNetwork] = []
-
-    // UI state cho form
-    @Published var presentForm: Bool = false
+    @Published var items: [WiFiNetwork] = []
     @Published var editing: WiFiNetwork? = nil
+    @Published var presentForm: Bool = false
 
     private let storageURL: URL = {
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -15,33 +13,45 @@ final class WiFiStore: ObservableObject {
 
     init() { load() }
 
-    // CRUD
+    // MARK: CRUD
     func upsert(_ item: WiFiNetwork) {
         if let idx = items.firstIndex(where: { $0.id == item.id }) {
             items[idx] = item
         } else {
             items.append(item)
         }
-        save()
+        persist()
     }
-
-    func update(_ item: WiFiNetwork) { upsert(item) }
 
     func delete(_ item: WiFiNetwork) {
         items.removeAll { $0.id == item.id }
-        save()
+        persist()
     }
 
-    // Import/Export helpers
-    func replaceAll(with newItems: [WiFiNetwork]) { items = newItems; save() }
-    func add(_ newItem: WiFiNetwork) { items.append(newItem); save() }
+    // MARK: Import/Export
+    func replaceAll(with newItems: [WiFiNetwork]) {
+        items = newItems
+        persist()
+    }
 
-    // Persistence
-    private func save() {
+    func exportJSON() -> Data? {
+        try? JSONEncoder().encode(items)
+    }
+
+    func importJSON(_ data: Data) {
+        if let newItems = try? JSONDecoder().decode([WiFiNetwork].self, from: data) {
+            replaceAll(with: newItems)
+        }
+    }
+
+    // MARK: Persistence
+    private func persist() {
         do {
             let data = try JSONEncoder().encode(items)
             try data.write(to: storageURL, options: .atomic)
-        } catch { print("Save error:", error) }
+        } catch {
+            print("Save error:", error)
+        }
     }
 
     private func load() {

@@ -1,29 +1,31 @@
 import Foundation
 
 enum SecurityType: String, Codable, CaseIterable, Identifiable {
-    case none
-    case wpa2wpa3   // thêm để khớp với chỗ gọi
+    case none = "Không có"
+    case wep = "WEP"
+    case wpa = "WPA"
+    case wpa2 = "WPA2"
+    case wpa3 = "WPA3"
+    case wpa2wpa3 = "WPA2/WPA3"
+    case wpaEnterprise = "WPA Doanh nghiệp"
+    case wpa2Enterprise = "WPA2 Doanh nghiệp"
+    case wpa3Enterprise = "WPA3 Doanh nghiệp"
 
     var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .none: return "Mở (Không mật khẩu)"
-        case .wpa2wpa3: return "WPA2/WPA3"
-        }
-    }
 }
 
-struct WiFiNetwork: Identifiable, Codable, Hashable {
+enum MACPolicy: String, Codable, CaseIterable, Identifiable {
+    case off = "Tắt"
+    case fixed = "Cố định"
+    case random = "Luân chuyển"
+
+    var id: String { rawValue }
+}
+
+struct WiFiNetwork: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var ssid: String
     var password: String?
-    var security: SecurityType
-
-    init(id: UUID = UUID(), ssid: String, password: String?, security: SecurityType) {
-        self.id = id
-        self.ssid = ssid
-        self.password = password
-        self.security = security
-    }
+    var security: SecurityType = .wpa2wpa3
+    var macPolicy: MACPolicy = .off
 }

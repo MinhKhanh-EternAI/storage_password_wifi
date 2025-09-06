@@ -1,46 +1,36 @@
 import Foundation
-import CoreLocation
 import SystemConfiguration.CaptiveNetwork
+import CoreLocation
 
-/// Helper lấy SSID hiện tại (chạy trên thiết bị thật, iOS 13+ cần quyền Location)
-enum CurrentWiFi {
-    static func currentSSID() async -> String? {
-        let auth = await ensureLocationAuthorized()
-        guard auth else { return nil }
+class CurrentWiFi: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published var ssid: String? = nil
+    private let locationManager = CLLocationManager()
 
-        guard let interfaces = CNCopySupportedInterfaces() as? [String] else { return nil }
-        for iface in interfaces {
-            if let info = CNCopyCurrentNetworkInfo(iface as CFString) as? [String: AnyObject],
-               let ssid = info[kCNNetworkInfoKeySSID as String] as? String {
-                return ssid
-            }
-        }
-        return nil
+    override init() {
+        super.init()
+        locationManager.delegate = self
+        locationManager.requestWhenInUseAuthorization()
+        refresh()
     }
 
-    // MARK: - Location permission (đơn giản)
-    private static func ensureLocationAuthorized() async -> Bool {
-        class Delegate: NSObject, CLLocationManagerDelegate {
-            var continuation: CheckedContinuation<CLAuthorizationStatus, Never>?
-            func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-                continuation?.resume(returning: manager.authorizationStatus)
-                continuation = nil
+    func refresh() {
+        guard CLLocationManager.authorizationStatus() == .authorizedWhenInUse else {
+            ssid = nil
+            return
+        }
+        if let ifaces = CNCopySupportedInterfaces() as? [String] {
+            for i in ifaces {
+                if let info = CNCopyCurrentNetworkInfo(i as CFString) as? [String: AnyObject],
+                   let s = info[kCNNetworkInfoKeySSID as String] as? String {
+                    ssid = s
+                    return
+                }
             }
         }
+        ssid = nil
+    }
 
-        let manager = CLLocationManager()
-        let status = manager.authorizationStatus
-
-        if status == .authorizedWhenInUse || status == .authorizedAlways { return true }
-        if status == .denied || status == .restricted { return false }
-
-        let delegate = Delegate()
-        manager.delegate = delegate
-        manager.requestWhenInUseAuthorization()
-
-        let newStatus = await withCheckedContinuation { (cc: CheckedContinuation<CLAuthorizationStatus, Never>) in
-            delegate.continuation = cc
-        }
-        return newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        refresh()
     }
 }

@@ -1,28 +1,23 @@
 import Foundation
-import CoreImage
 import CoreImage.CIFilterBuiltins
-import UIKit
+import SwiftUI
 
 enum QRCode {
     static func wifiString(ssid: String, password: String?, security: SecurityType) -> String {
-        let t = (security == .none) ? "nopass" : "WPA"
-        let p = password ?? ""
-        // Theo chuẩn: WIFI:T:<auth>;S:<ssid>;P:<password>;;
-        return "WIFI:T:\(t);S:\(ssid);P:\(p);;"
+        let sec = security.rawValue
+        return "WIFI:T:\(sec);S:\(ssid);P:\(password ?? "");;"
     }
 
     static func make(text: String, size: CGSize) -> UIImage? {
-        let ctx = CIContext()
         let filter = CIFilter.qrCodeGenerator()
-        filter.setValue(Data(text.utf8), forKey: "inputMessage")
+        filter.message = Data(text.utf8)
+        let transform = CGAffineTransform(scaleX: size.width / 31, y: size.height / 31)
 
-        guard let output = filter.outputImage else { return nil }
-        let scaleX = size.width / output.extent.size.width
-        let scaleY = size.height / output.extent.size.height
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
-
-        if let cg = ctx.createCGImage(scaled, from: scaled.extent) {
-            return UIImage(cgImage: cg)
+        if let output = filter.outputImage?.transformed(by: transform) {
+            let context = CIContext()
+            if let cg = context.createCGImage(output, from: output.extent) {
+                return UIImage(cgImage: cg)
+            }
         }
         return nil
     }

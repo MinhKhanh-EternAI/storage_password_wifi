@@ -6,50 +6,81 @@ enum FormMode {
 }
 
 struct WiFiFormView: View {
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: WiFiStore
+    @Environment(\.dismiss) var dismiss
+    
     let mode: FormMode
-    @State private var model: WiFiNetwork
-    let onSave: (WiFiNetwork) -> Void
-
-    init(mode: FormMode, item: WiFiNetwork, onSave: @escaping (WiFiNetwork) -> Void) {
-        self.mode = mode
-        self._model = State(initialValue: item)
-        self.onSave = onSave
-    }
-
+    @State var item: WiFiNetwork
+    
+    @State private var showSecurity = false
+    @State private var showMacPolicy = false
+    
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Thông tin") {
-                    TextField("Tên mạng", text: $model.ssid)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-
-                    SecureField("Mật khẩu", text: Binding(
-                        get: { model.password ?? "" },
-                        set: { model.password = $0.isEmpty ? nil : $0 }
-                    ))
-
-                    Picker("Bảo mật", selection: $model.security) {
-                        ForEach(SecurityType.allCases) { sec in
-                            Text(sec.displayName).tag(sec)
-                        }
-                    }
-                }
+        Form {
+            Section(header: Text("THÔNG TIN")) {
+                TextField("Tên", text: $item.ssid)
+                SecureField("Mật khẩu", text: Binding(
+                    get: { item.password ?? "" },
+                    set: { item.password = $0 }
+                ))
             }
-            .navigationTitle(mode == .create ? "Thêm mạng" : "Sửa Wi-Fi")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Hủy") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Lưu") {
-                        onSave(model)
+            
+            Section(header: Text("BẢO MẬT")) {
+                Button {
+                    showSecurity = true
+                } label: {
+                    HStack {
+                        Text("Bảo mật")
+                        Spacer()
+                        Text(item.security.rawValue)
+                            .foregroundColor(.secondary)
                     }
-                    .disabled(model.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
+        .navigationTitle(mode == .create ? "Thêm Wi-Fi" : "Sửa Wi-Fi")
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Hủy") { dismiss() }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Lưu") {
+                    if mode == .create {
+                        store.add(item)
+                    } else {
+                        store.update(item)
+                    }
+                    dismiss()
+                }
+            }
+        }
+        .sheet(isPresented: $showSecurity) {
+            SecurityPickerView(selected: $item.security)
+        }
+    }
+}
+
+struct SecurityPickerView: View {
+    @Binding var selected: SecurityType
+    
+    var body: some View {
+        List {
+            ForEach(SecurityType.allCases, id: \.self) { type in
+                HStack {
+                    Text(type.rawValue)
+                    Spacer()
+                    if type == selected {
+                        Image(systemName: "checkmark")
+                            .foregroundColor(.blue)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    selected = type
+                }
+            }
+        }
+        .navigationTitle("Bảo mật")
     }
 }
