@@ -15,161 +15,25 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                // Current network card
-                Section {
-                    // CARD "Mạng hiện tại"
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                            !ssid.isEmpty {
-                                Text(ssid).font(.headline)
-                                Text("Đang kết nối").foregroundStyle(.secondary).font(.footnote)
-                            } else {
-                                Text("Không khả dụng").font(.headline)
-                                Text("Vui lòng kết nối mạng").foregroundStyle(.secondary).font(.footnote)
-                            }
-                        }
-                        Spacer()
-                        Button {
-                            if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                            !ssid.isEmpty {
-                                pathToForm(with: WiFiNetwork(ssid: ssid, password: nil))
-                            } else {
-                                pathToForm(with: newItem())
-                            }
-                        } label: { Image(systemName: "plus").font(.title3) }
-                        .buttonStyle(.borderless)
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                } header: {
-                    HStack {
-                        Text("MẠNG HIỆN TẠI")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-                        Spacer()
-                        Button {
-                            refreshSSID()
-                        } label: {
-                            Label("Làm mới", systemImage: "arrow.clockwise")
-                                .font(.footnote)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                    .padding(.top, 4)
-                }
-
-                // Saved list
-                if filteredItems.isEmpty {
-                    Section {
-                        emptyState
-                            .listRowBackground(Color.clear)
-                    } header: {
-                        HStack {
-                            Text("ĐÃ LƯU")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
-                            Spacer()
-                        }
-                        .padding(.top, 4)
-                    }
-                } else {
-                    // Header "ĐÃ LƯU" cùng style
-                    Section { } header: {
-                        HStack {
-                            Text("ĐÃ LƯU")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
-                            Spacer()
-                        }
-                        .padding(.top, 4)
-                    }
-
-                    // Mỗi chữ cái là 1 Section top-level (như ảnh mẫu)
-                    ForEach(groupedKeys, id: \.self) { key in
-                        Section(header: Text(key).textCase(.uppercase)) {
-                            ForEach(filteredItemsByKey[key] ?? []) { network in
-                                NavigationLink {
-                                    WiFiDetailView(item: network).environmentObject(store)
-                                } label: {
-                                    row(for: network)
-                                }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        confirmDelete = network.id
-                                    } label: { Label("Xóa", systemImage: "trash") }
-                                    .tint(.red)
-                                }
-                            }
-                        }
+            listContent
+                .listStyle(.insetGrouped)
+                .listSectionSpacingCompat(8) // iOS 17+: 8pt. iOS 16: bỏ qua
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { topToolbar }
+                .searchable(text: $searchText,
+                            placement: .navigationBarDrawer(displayMode: .automatic),
+                            prompt: "Search")
+                .onAppear { refreshSSID() }
+                .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
+                    confirmDelete != nil
+                }, set: { v in
+                    if !v { confirmDelete = nil }
+                })) {
+                    Button("Hủy", role: .cancel) {}
+                    Button("Chắc chắn", role: .destructive) {
+                        if let id = confirmDelete { store.delete(id) }
                     }
                 }
-            }
-            .listStyle(.insetGrouped)
-            .listSectionSpacing(8)   // hoặc .listSectionSpacing(.compact)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                // Trái
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        Picker("Giao diện", selection: $theme.mode) {
-                            ForEach(ThemeMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: theme.mode == .dark ? "moon.fill" :
-                                            theme.mode == .light ? "sun.max.fill" :
-                                            "circle.lefthalf.filled")
-                    }
-                }
-
-                // GIỮA (tiêu đề)
-                ToolbarItem(placement: .principal) {
-                    Text("Wi-Fi")
-                        .font(.system(size: 18, weight: .bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)                 // co lại chút nếu màn nhỏ
-                }
-
-                // Phải
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { pathToForm(with: newItem()) } label: {
-                        Image(systemName: "plus")
-                    }
-                    Menu {
-                        Button { prepareExport(); showingExporter = true } label: {
-                            Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
-                        }
-                        Button { showingImporter = true } label: {
-                            Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-            }
-            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
-            .onAppear { refreshSSID() }
-            .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
-                confirmDelete != nil
-            }, set: { v in
-                if !v { confirmDelete = nil }
-            })) {
-                Button("Hủy", role: .cancel) {}
-                Button("Chắc chắn", role: .destructive) {
-                    if let id = confirmDelete { store.delete(id) }
-                }
-            }
         }
         // Export
         .fileExporter(
@@ -185,12 +49,173 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Subviews
+
+    @ViewBuilder
+    private var listContent: some View {
+        List {
+            currentNetworkSection
+            savedListSection
+        }
+    }
+
+    private var currentNetworkSection: some View {
+        Section {
+            // CARD "Mạng hiện tại"
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !ssid.isEmpty {
+                        Text(ssid).font(.headline)
+                        Text("Đang kết nối")
+                            .foregroundStyle(.secondary)
+                            .font(.footnote)
+                    } else {
+                        Text("Không khả dụng").font(.headline)
+                        Text("Vui lòng kết nối mạng")
+                            .foregroundStyle(.secondary)
+                            .font(.footnote)
+                    }
+                }
+                Spacer()
+                Button {
+                    if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !ssid.isEmpty {
+                        pathToForm(with: WiFiNetwork(ssid: ssid, password: nil))
+                    } else {
+                        pathToForm(with: newItem())
+                    }
+                } label: {
+                    Image(systemName: "plus").font(.title3)
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            )
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        } header: {
+            // Header kiểu cũ (không overlay) để không chồng nhau
+            HStack {
+                Text("MẠNG HIỆN TẠI")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                Spacer()
+                Button {
+                    refreshSSID()
+                } label: {
+                    Label("Làm mới", systemImage: "arrow.clockwise")
+                        .font(.footnote)
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    @ViewBuilder
+    private var savedListSection: some View {
+        if filteredItems.isEmpty {
+            Section {
+                emptyState
+                    .listRowBackground(Color.clear)
+            } header: {
+                savedHeader
+            }
+        } else {
+            // Header "ĐÃ LƯU" cùng style với "MẠNG HIỆN TẠI"
+            Section { } header: {
+                savedHeader
+            }
+
+            // Mỗi chữ cái là 1 Section top-level (header nằm ngoài card)
+            ForEach(groupedKeys, id: \.self) { key in
+                let items: [WiFiNetwork] = filteredItemsByKey[key] ?? []
+                Section(header: Text(key).textCase(.uppercase)) {
+                    ForEach(items) { network in
+                        NavigationLink {
+                            WiFiDetailView(item: network)
+                                .environmentObject(store)
+                        } label: {
+                            row(for: network)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                confirmDelete = network.id
+                            } label: {
+                                Label("Xóa", systemImage: "trash")
+                            }
+                            .tint(.red)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var savedHeader: some View {
+        HStack {
+            Text("ĐÃ LƯU")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.top, 4)
+    }
+
+    // Toolbar tách riêng để giảm độ phức tạp của body
+    @ToolbarContentBuilder
+    private var topToolbar: some ToolbarContent {
+        // Trái
+        ToolbarItem(placement: .topBarLeading) {
+            Menu {
+                Picker("Giao diện", selection: $theme.mode) {
+                    ForEach(ThemeMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+            } label: {
+                Image(systemName: theme.mode == .dark ? "moon.fill" :
+                                    theme.mode == .light ? "sun.max.fill" :
+                                    "circle.lefthalf.filled")
+            }
+        }
+
+        // Giữa
+        ToolbarItem(placement: .principal) {
+            Text("Wi-Fi")
+                .font(.system(size: 18, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+
+        // Phải
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button { pathToForm(with: newItem()) } label: {
+                Image(systemName: "plus")
+            }
+            Menu {
+                Button { prepareExport(); showingExporter = true } label: {
+                    Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
+                }
+                Button { showingImporter = true } label: {
+                    Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+        }
+    }
+
+    // MARK: - Helpers (logic & small views)
 
     private func pathToForm(with item: WiFiNetwork) {
         showingAdd = true
-        // Present inline (sheet with NavigationStack)
-        // but to keep code simple, present immediately:
         let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
         UIApplication.shared.windows.first?.rootViewController?.present(hosting, animated: true)
@@ -198,8 +223,9 @@ struct ContentView: View {
 
     private var filteredItems: [WiFiNetwork] {
         let base = store.items
-        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return base }
-        return base.filter { $0.ssid.localizedCaseInsensitiveContains(searchText) }
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return base }
+        return base.filter { $0.ssid.localizedCaseInsensitiveContains(q) }
     }
 
     private var filteredItemsByKey: [String: [WiFiNetwork]] {
@@ -248,7 +274,8 @@ struct ContentView: View {
 
     private func refreshSSID() {
         currentWiFi.fetchSSID { ssid in
-            store.currentSSID = ssid
+            // Cập nhật UI trên main thread cho chắc chắn
+            DispatchQueue.main.async { store.currentSSID = ssid }
         }
     }
 
@@ -273,7 +300,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Small helpers
+// MARK: - Small helpers used in ContentView
 
 private struct SecureDots: View {
     let text: String
@@ -299,5 +326,18 @@ private extension String {
             return u
         }
         return "#"
+    }
+}
+
+// MARK: - Compat
+
+extension View {
+    @ViewBuilder
+    func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
+        if #available(iOS 17.0, *) {
+            self.listSectionSpacing(spacing)
+        } else {
+            self
+        }
     }
 }
