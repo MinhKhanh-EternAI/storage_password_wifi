@@ -90,8 +90,8 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderless)
             }
-            .padding(.vertical, 10)
-            
+            .padding(.vertical, 4)
+
         } header: {
             HStack(spacing: 8) {
                 statusDot
@@ -153,6 +153,7 @@ struct ContentView: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
+                            .padding(.top, 4)
                         }
                         Text(key).textCase(.uppercase)
                     }
