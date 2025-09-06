@@ -15,30 +15,33 @@ struct ContentView: View {
 
     private let currentWiFi = CurrentWiFi()
 
-    // Layout constants
-    private let cellLeading: CGFloat = 16          // lề trái mặc định của .insetGrouped
-    private let statusDotSize: CGFloat = 6         // chấm trạng thái nhỏ
+    // MARK: Layout constants
+    private let cellLeading: CGFloat = 16
+    private let statusDotSize: CGFloat = 6
 
     // MARK: Body
     var body: some View {
         NavigationStack {
-            listContent
-                .listStyle(.insetGrouped)
-                .listSectionSpacingCompat(6)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { topToolbar }
-                .searchable(text: $searchText,
-                            placement: .navigationBarDrawer(displayMode: .automatic),
-                            prompt: "Search")
-                .onAppear { refreshSSID() }
-                .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
-                    confirmDelete != nil
-                }, set: { v in if !v { confirmDelete = nil } })) {
-                    Button("Hủy", role: .cancel) {}
-                    Button("Chắc chắn", role: .destructive) {
-                        if let id = confirmDelete { store.delete(id) }
-                    }
+            List {
+                currentNetworkSection
+                savedListSection
+            }
+            .listStyle(.insetGrouped)
+            .listSectionSpacingCompat(6)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { topToolbar }
+            .searchable(text: $searchText,
+                        placement: .navigationBarDrawer(displayMode: .automatic),
+                        prompt: "Search")
+            .onAppear { refreshSSID() }
+            .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
+                confirmDelete != nil
+            }, set: { v in if !v { confirmDelete = nil } })) {
+                Button("Hủy", role: .cancel) {}
+                Button("Chắc chắn", role: .destructive) {
+                    if let id = confirmDelete { store.delete(id) }
                 }
+            }
         }
         // Export
         .fileExporter(isPresented: $showingExporter,
@@ -52,16 +55,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - List
-    @ViewBuilder
-    private var listContent: some View {
-        List {
-            currentNetworkSection
-            savedListSection
-        }
-    }
-
-    // MARK: - Current network
+    // MARK: - Current network section
     private var currentNetworkSection: some View {
         Section {
             HStack {
@@ -85,13 +79,12 @@ struct ContentView: View {
                     if isConnected {
                         pathToForm(with: WiFiNetwork(
                             ssid: store.currentSSID!.trimmingCharacters(in: .whitespacesAndNewlines),
-                            password: nil))
+                            password: nil
+                        ))
                     } else {
-                        pathToForm(with: newItem())
+                        pathToForm(with: WiFiNetwork(ssid: "", password: nil))
                     }
-                } label: {
-                    Image(systemName: "plus").font(.title3)
-                }
+                } label: { Image(systemName: "plus").font(.title3) }
                 .buttonStyle(.borderless)
             }
             .padding(12)
@@ -99,7 +92,7 @@ struct ContentView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
-            // Cùng lề trái với list
+            // Cùng lề trái với List
             .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
             .listRowSeparator(.hidden)
         } header: {
@@ -118,13 +111,12 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderless)
             }
-            // Header cùng mép trái với cell & các letter A/B/…
-            .padding(.leading, cellLeading)
+            .padding(.leading, cellLeading) // đồng bộ mép trái
             .padding(.top, 4)
         }
     }
 
-    // MARK: - Saved list
+    // MARK: - Saved section
     private var savedListSection: some View {
         if filteredItems.isEmpty {
             Section {
@@ -139,11 +131,11 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
-                .padding(.leading, cellLeading)   // đồng bộ lề trái
+                .padding(.leading, cellLeading)
                 .padding(.top, 4)
             }
         } else {
-            // Header "ĐÃ LƯU" (1 lần)
+            // Header "ĐÃ LƯU" (chỉ một lần)
             Section { } header: {
                 HStack(spacing: 8) {
                     savedStatusDot
@@ -153,11 +145,11 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
-                .padding(.leading, cellLeading)   // đồng bộ lề trái
+                .padding(.leading, cellLeading)
                 .padding(.top, 4)
             }
 
-            // Các nhóm A, B, C…
+            // Nhóm A/B/C…
             ForEach(groupedKeys, id: \.self) { key in
                 Section {
                     ForEach(filteredItemsByKey[key] ?? []) { network in
@@ -167,7 +159,7 @@ struct ContentView: View {
                         } label: {
                             row(for: network)
                         }
-                        // card cùng lề trái với current card
+                        // Card cùng lề trái với header
                         .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
@@ -181,7 +173,7 @@ struct ContentView: View {
                         .textCase(.uppercase)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .padding(.leading, cellLeading) // đồng bộ lề trái
+                        .padding(.leading, cellLeading)
                         .padding(.top, 2)
                 }
             }
@@ -192,6 +184,33 @@ struct ContentView: View {
         Circle()
             .fill(hasSavedNetworks ? .green : .red) // có mạng đã lưu → xanh
             .frame(width: statusDotSize, height: statusDotSize)
+    }
+
+    // MARK: - Rows & small views
+    private func row(for item: WiFiNetwork) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.ssid)
+                    .font(.headline)
+                HStack(spacing: 8) {
+                    PasswordDots(text: item.password ?? "")
+                }
+            }
+            Spacer()
+            Image(systemName: "qrcode")
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var emptyState: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "wifi.slash")
+            Text("Chưa có mạng nào được lưu")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 16)
     }
 
     // MARK: - Toolbar
@@ -219,7 +238,7 @@ struct ContentView: View {
         }
 
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button { pathToForm(with: newItem()) } label: {
+            Button { pathToForm(with: WiFiNetwork(ssid: "", password: nil)) } label: {
                 Image(systemName: "plus")
             }
             Menu {
@@ -235,12 +254,18 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Logic helpers
     private func pathToForm(with item: WiFiNetwork) {
-        showingAdd = true
         let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
-        UIApplication.shared.windows.first?.rootViewController?.present(hosting, animated: true)
+
+        // tránh API deprecated
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+           let root = scene.windows.first?.rootViewController {
+            root.present(hosting, animated: true)
+        }
     }
 
     private var filteredItems: [WiFiNetwork] {
@@ -262,36 +287,6 @@ struct ContentView: View {
             if b == "#" { return true }
             return a.localizedStandardCompare(b) == .orderedAscending
         }
-    }
-
-    private var emptyState: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "wifi.slash")
-            Text("Chưa có mạng nào được lưu")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 16)
-    }
-
-    private func row(for item: WiFiNetwork) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.ssid)
-                    .font(.headline)
-                HStack(spacing: 8) {
-                    SecureDots(text: item.password ?? "")
-                }
-            }
-            Spacer()
-            Image(systemName: "qrcode")
-                .foregroundStyle(.secondary)
-        }
-        .contentShape(Rectangle())
-    }
-
-    private func newItem() -> WiFiNetwork {
-        WiFiNetwork(ssid: "", password: nil)
     }
 
     private func refreshSSID() {
@@ -329,8 +324,8 @@ struct ContentView: View {
     private var hasSavedNetworks: Bool { !store.items.isEmpty }
 }
 
-// MARK: - Small views
-private struct SecureDots: View {
+// MARK: - Small view for password dots
+private struct PasswordDots: View {
     let text: String
     var body: some View {
         if text.isEmpty {
@@ -345,7 +340,7 @@ private struct SecureDots: View {
     }
 }
 
-// MARK: - Helpers
+// MARK: - Utilities
 private extension String {
     var firstGroupKey: String {
         guard let first = trimmingCharacters(in: .whitespacesAndNewlines).first else { return "#" }
@@ -360,7 +355,7 @@ extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
-            self.listSectionSpacing(spacing) // 6pt gần giống .compact
+            self.listSectionSpacing(spacing) // tương đương .compact khi để 6
         } else {
             self
         }
