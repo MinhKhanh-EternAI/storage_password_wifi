@@ -17,7 +17,7 @@ struct ContentView: View {
         NavigationStack {
             listContent
                 .listStyle(.insetGrouped)
-                .listSectionSpacingCompat(8) // iOS 17+: 8pt. iOS 16: bỏ qua
+                .listSectionSpacingCompat(4) // iOS 17+: 8pt. iOS 16: bỏ qua
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { topToolbar }
                 .searchable(text: $searchText,
@@ -90,13 +90,8 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderless)
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
+            .padding(.vertical, 10)                 // chỉ padding theo trục dọc, không co ngang
+            .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))            // giữ sạch separator
         } header: {
             // Header kiểu cũ (không overlay) để không chồng nhau
             HStack {
@@ -124,33 +119,39 @@ struct ContentView: View {
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
-                savedHeader
+                Text("ĐÃ LƯU")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
             }
         } else {
-            // Header "ĐÃ LƯU" cùng style với "MẠNG HIỆN TẠI"
-            Section { } header: {
-                savedHeader
-            }
-
-            // Mỗi chữ cái là 1 Section top-level (header nằm ngoài card)
-            ForEach(groupedKeys, id: \.self) { key in
+            // Mỗi chữ cái là Section top-level
+            ForEach(Array(groupedKeys.enumerated()), id: \.element) { index, key in
                 let items: [WiFiNetwork] = filteredItemsByKey[key] ?? []
-                Section(header: Text(key).textCase(.uppercase)) {
+
+                Section {
                     ForEach(items) { network in
                         NavigationLink {
-                            WiFiDetailView(item: network)
-                                .environmentObject(store)
+                            WiFiDetailView(item: network).environmentObject(store)
                         } label: {
                             row(for: network)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 confirmDelete = network.id
-                            } label: {
-                                Label("Xóa", systemImage: "trash")
-                            }
+                            } label: { Label("Xóa", systemImage: "trash") }
                             .tint(.red)
                         }
+                    }
+                } header: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if index == 0 {
+                            Text("ĐÃ LƯU")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                        }
+                        Text(key).textCase(.uppercase)
                     }
                 }
             }
@@ -335,7 +336,7 @@ extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
-            self.listSectionSpacing(spacing)
+            self.listSectionSpacing(spacing)   // hoặc .listSectionSpacing(.compact)
         } else {
             self
         }
