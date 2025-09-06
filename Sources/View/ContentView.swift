@@ -90,7 +90,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderless)
             }
-            .padding(.vertical, 4)
+            // .padding(.vertical, 4)
 
         } header: {
             HStack(spacing: 8) {
