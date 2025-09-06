@@ -13,7 +13,6 @@ struct WiFiFormView: View {
         Form {
             // THÔNG TIN
             Section {
-                // Nhãn bên trái (đen), trường nhập bên phải (placeholder xám)
                 LabeledContent {
                     TextField("", text: $item.ssid,
                               prompt: Text("Tên mạng"))
@@ -32,7 +31,6 @@ struct WiFiFormView: View {
                 } label: {
                     Text("Mật khẩu").foregroundStyle(.primary)
                 }
-
             } header: {
                 Text("THÔNG TIN")
                     .textCase(.uppercase)
@@ -43,12 +41,15 @@ struct WiFiFormView: View {
             // BẢO MẬT
             Section {
                 NavigationLink {
-                    SecurityPickerView(selection: $item.security)
+                    // ✅ Sửa label tham số: security:
+                    SecurityPickerView(security: $item.security)
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text(item.security.displayName)
+                        // ✅ Không dùng displayName (không tồn tại)
+                        //   In ra tên case hoặc bạn đổi bằng extension riêng nếu muốn.
+                        Text("\(item.security)")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -69,12 +70,13 @@ struct WiFiFormView: View {
                     .font(.system(size: 18, weight: .bold))
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Lưu") { save() }.bold()
+                Button("Lưu") { save() }.fontWeight(.bold)
             }
         }
     }
 
     // MARK: - Helpers
+
     private var passwordBinding: Binding<String> {
         Binding<String>(
             get: { item.password ?? "" },
@@ -84,8 +86,16 @@ struct WiFiFormView: View {
 
     private func save() {
         switch mode {
-        case .create: store.add(item)
-        case .edit:   store.update(item)
+        case .create:
+            // ✅ Không có store.add: thêm trực tiếp rồi sort
+            store.items.append(item)
+            store.sortInPlace()
+        case .edit:
+            // ✅ Không có store.update: tự thay phần tử theo id
+            if let i = store.items.firstIndex(where: { $0.id == item.id }) {
+                store.items[i] = item
+                store.sortInPlace()
+            }
         }
         dismiss()
     }
