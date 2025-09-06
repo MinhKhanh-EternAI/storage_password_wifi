@@ -34,15 +34,14 @@ struct WiFiFormView: View {
                 }
             }
         }
-        .navigationTitle("Sửa Wi-Fi")
+        .navigationTitle("Thêm/Sửa Wi-Fi")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Huỷ") { dismiss() }
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Lưu") {
-                    onSave(item)
-                    dismiss()
+                    onSave(item); dismiss()
                 }.disabled(item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }

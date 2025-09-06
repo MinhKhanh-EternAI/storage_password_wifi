@@ -5,22 +5,12 @@ struct WiFiDetailView: View {
     var onUpdate: (WiFiNetwork) -> Void
     var onDelete: () -> Void
 
-    @State private var showActions = false
     @State private var qrImage: UIImage? = nil
+    @State private var showShare = false
 
     var body: some View {
-        VStack(spacing: 16) {
-            // QR gọn: chỉ tên + mật khẩu
-            if let img = qrImage {
-                Image(uiImage: img)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 200)
-                    .clipShape(Rectangle()) // khung vuông, không bo góc
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
+        Form {
+            Section {
                 HStack {
                     Text("Tên mạng").foregroundStyle(.secondary)
                     Spacer()
@@ -38,6 +28,13 @@ struct WiFiDetailView: View {
                                 } label: { Label("Sao chép", systemImage: "doc.on.doc") }
                             }
                     }
+                } else {
+                    HStack {
+                        Text("Mật khẩu").foregroundStyle(.secondary)
+                        Spacer()
+                        Text("—")
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 HStack {
                     Text("Bảo mật").foregroundStyle(.secondary)
@@ -50,35 +47,38 @@ struct WiFiDetailView: View {
                     Text(item.addressPrivacy.displayName)
                 }
             }
-            .padding(.horizontal)
 
-            Spacer()
+            Section("QR Wi-Fi") {
+                if let img = qrImage {
+                    Image(uiImage: img)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 220)
+                        .clipShape(Rectangle()) // khung vuông
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                Button {
+                    guard let img = qrImage else { return }
+                    let av = UIActivityViewController(activityItems: [img], applicationActivities: nil)
+                    UIApplication.shared.firstKeyWindow?.rootViewController?.present(av, animated: true)
+                } label: { Label("Chia sẻ mã QR", systemImage: "square.and.arrow.up") }
+            }
         }
         .navigationTitle("Chi tiết")
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        // Share QR
-                        guard let img = qrImage else { return }
-                        let av = UIActivityViewController(activityItems: [img], applicationActivities: nil)
-                        UIApplication.shared.firstKeyWindow?.rootViewController?.present(av, animated: true)
-                    } label: { Label("Chia sẻ QR", systemImage: "square.and.arrow.up") }
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                NavigationLink {
+                    WiFiFormView(item: item) { updated in
+                        self.item = updated
+                        onUpdate(updated)
+                        rebuildQR()
+                    }
+                } label: { Image(systemName: "pencil") }
 
-                    Button(role: .destructive) {
-                        onDelete()
-                    } label: { Label("Xoá", systemImage: "trash") }
-
-                    NavigationLink {
-                        WiFiFormView(item: item) { updated in
-                            self.item = updated
-                            onUpdate(updated)
-                            rebuildQR()
-                        }
-                    } label: { Label("Sửa", systemImage: "pencil") }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
+                Button(role: .destructive) {
+                    onDelete()
+                } label: { Image(systemName: "trash") }
             }
         }
         .onAppear { rebuildQR() }

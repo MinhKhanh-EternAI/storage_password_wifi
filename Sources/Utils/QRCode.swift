@@ -8,12 +8,11 @@ enum QRCodeMaker {
         let auth = security.qrAuthToken ?? "nopass"
 
         func esc(_ s: String) -> String {
-            s
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: ";", with: "\\;")
-                .replacingOccurrences(of: ",", with: "\\,")
-                .replacingOccurrences(of: ":", with: "\\:")
-                .replacingOccurrences(of: "\"", with: "\\\"")
+            s.replacingOccurrences(of: "\\", with: "\\\\")
+             .replacingOccurrences(of: ";", with: "\\;")
+             .replacingOccurrences(of: ",", with: "\\,")
+             .replacingOccurrences(of: ":", with: "\\:")
+             .replacingOccurrences(of: "\"", with: "\\\"")
         }
 
         if auth.lowercased() == "nopass" || (password ?? "").isEmpty {
@@ -23,7 +22,7 @@ enum QRCodeMaker {
         }
     }
 
-    static func generate(from text: String, scale: CGFloat = 8) -> UIImage? {
+    static func generate(from text: String, scale: CGFloat = 7) -> UIImage? {
         let data = Data(text.utf8)
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()
