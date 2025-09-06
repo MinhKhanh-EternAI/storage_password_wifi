@@ -63,7 +63,7 @@ struct ContentView: View {
         Section {
             // CARD "Mạng hiện tại"
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 8) {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
                         Text(ssid).font(.headline)
