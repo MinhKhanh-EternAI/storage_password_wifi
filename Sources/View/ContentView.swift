@@ -332,13 +332,13 @@ private struct SecureDots: View {
     let text: String
     var body: some View {
         if text.isEmpty {
-            Text("Mở")
+            Text("Không bao mật")
                 .foregroundStyle(.secondary)
                 .font(.footnote)
         } else {
             Text(String(repeating: "•", count: max(6, text.count)))
                 .foregroundStyle(.secondary)
-                .font(.body)
+                .font(.title3)
         }
     }
 }

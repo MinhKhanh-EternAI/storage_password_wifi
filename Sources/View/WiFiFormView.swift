@@ -15,32 +15,28 @@ struct WiFiFormView: View {
             Section {
                 // TÊN
                 LabeledContent {
-                    ZStack(alignment: .trailing) {
-                        if item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("Tên mạng")
-                                .foregroundStyle(.tertiary)   // placeholder mờ
-                        }
-                        TextField("", text: $item.ssid)
-                            .multilineTextAlignment(.trailing) // text nằm bên phải
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                    }
+                    TextField(
+                        "",
+                        text: $item.ssid,
+                        prompt: Text("Tên mạng").foregroundStyle(.tertiary) // placeholder bên trái
+                    )
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    // không set .multilineTextAlignment(.trailing) để chữ bám trái
                 } label: {
-                    Text("Tên").foregroundStyle(.primary)       // nhãn đen cố định
+                    Text("Tên").foregroundStyle(.primary)
                 }
 
                 // MẬT KHẨU
                 LabeledContent {
-                    ZStack(alignment: .trailing) {
-                        if (item.password ?? "").isEmpty {
-                            Text("Mật khẩu")
-                                .foregroundStyle(.tertiary)     // placeholder mờ
-                        }
-                        SecureField("", text: passwordBinding)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    SecureField(
+                        "",
+                        text: passwordBinding,
+                        prompt: Text("Mật khẩu").foregroundStyle(.tertiary) // placeholder bên trái
+                    )
+                    // không set .multilineTextAlignment(.trailing)
                 } label: {
-                    Text("Mật khẩu").foregroundStyle(.primary)  // nhãn đen cố định
+                    Text("Mật khẩu").foregroundStyle(.primary)
                 }
             } header: {
                 Text("THÔNG TIN")
