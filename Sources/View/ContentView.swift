@@ -18,26 +18,19 @@ struct ContentView: View {
             List {
                 // Current network card
                 Section {
-                    // --- NỘI DUNG THẺ "MẠNG HIỆN TẠI" ---
+                    // CARD "Mạng hiện tại"
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                             !ssid.isEmpty {
-                                Text(ssid)
-                                    .font(.headline)
-                                Text("Đang kết nối")
-                                    .foregroundStyle(.secondary)
-                                    .font(.footnote)
+                                Text(ssid).font(.headline)
+                                Text("Đang kết nối").foregroundStyle(.secondary).font(.footnote)
                             } else {
-                                Text("Không khả dụng")
-                                    .font(.headline)
-                                Text("Vui lòng kết nối mạng")
-                                    .foregroundStyle(.secondary)
-                                    .font(.footnote)
+                                Text("Không khả dụng").font(.headline)
+                                Text("Vui lòng kết nối mạng").foregroundStyle(.secondary).font(.footnote)
                             }
                         }
                         Spacer()
-                        // Giữ nút "+" trong card như cũ
                         Button {
                             if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                             !ssid.isEmpty {
@@ -45,28 +38,32 @@ struct ContentView: View {
                             } else {
                                 pathToForm(with: newItem())
                             }
+                        } label: { Image(systemName: "plus").font(.title3) }
+                        .buttonStyle(.borderless)
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    )
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                } header: {
+                    HStack {
+                        Text("MẠNG HIỆN TẠI")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
+                        Spacer()
+                        Button {
+                            refreshSSID()
                         } label: {
-                            Image(systemName: "plus")
-                                .font(.title3)
+                            Label("Làm mới", systemImage: "arrow.clockwise")
+                                .font(.footnote)
                         }
                         .buttonStyle(.borderless)
                     }
-                    .padding(8)
-                }
-                header: {
-                    Text("MẠNG HIỆN TẠI")        // Text thuần → nhận style header mặc định như "ĐÃ LƯU"
-                        .overlay(alignment: .trailing) {
-                            Button {
-                                refreshSSID()
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.clockwise")
-                                    Text("Làm mới")
-                                }
-                                .font(.footnote)             // tuỳ chọn, để nút nhỏ gọn
-                            }
-                            .buttonStyle(.borderless)
-                        }
+                    .padding(.top, 4)
                 }
 
                 // Saved list
@@ -75,30 +72,41 @@ struct ContentView: View {
                         emptyState
                             .listRowBackground(Color.clear)
                     } header: {
-                        Text("ĐÃ LƯU")
+                        HStack {
+                            Text("ĐÃ LƯU")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                            Spacer()
+                        }
+                        .padding(.top, 4)
                     }
                 } else {
-                    // Header "ĐÃ LƯU" phía trên các nhóm
+                    // Header "ĐÃ LƯU" cùng style
                     Section { } header: {
-                        Text("ĐÃ LƯU")
+                        HStack {
+                            Text("ĐÃ LƯU")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                            Spacer()
+                        }
+                        .padding(.top, 4)
                     }
 
-                    // Mỗi chữ cái là một Section top-level
+                    // Mỗi chữ cái là 1 Section top-level (như ảnh mẫu)
                     ForEach(groupedKeys, id: \.self) { key in
                         Section(header: Text(key).textCase(.uppercase)) {
                             ForEach(filteredItemsByKey[key] ?? []) { network in
                                 NavigationLink {
-                                    WiFiDetailView(item: network)
-                                        .environmentObject(store)
+                                    WiFiDetailView(item: network).environmentObject(store)
                                 } label: {
                                     row(for: network)
                                 }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                     Button(role: .destructive) {
                                         confirmDelete = network.id
-                                    } label: {
-                                        Label("Xóa", systemImage: "trash")
-                                    }
+                                    } label: { Label("Xóa", systemImage: "trash") }
                                     .tint(.red)
                                 }
                             }
@@ -106,6 +114,8 @@ struct ContentView: View {
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(8)   // hoặc .listSectionSpacing(.compact)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Trái
@@ -199,7 +209,6 @@ struct ContentView: View {
 
     private var groupedKeys: [String] {
         let keys = Array(filteredItemsByKey.keys)
-        // Sắp xếp A→Z→… và để "#" luôn ở cuối
         return keys.sorted { a, b in
             if a == "#" { return false }
             if b == "#" { return true }
