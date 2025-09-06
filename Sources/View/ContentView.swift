@@ -52,53 +52,54 @@ struct ContentView: View {
                         .buttonStyle(.borderless)
                     }
                     .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemBackground)))
                 }
                 header: {
-                    // --- HEADER TUỲ BIẾN: TIÊU ĐỀ + LÀM MỚI ---
-                    HStack {
-                        Text("MẠNG HIỆN TẠI")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)     // (tuỳ chọn) giữ kiểu chữ giống hệ thống
-                        Spacer()
-                        Button {
-                            refreshSSID()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.clockwise")
-                                Text("Làm mới")
+                    Text("MẠNG HIỆN TẠI")        // Text thuần → nhận style header mặc định như "ĐÃ LƯU"
+                        .overlay(alignment: .trailing) {
+                            Button {
+                                refreshSSID()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Làm mới")
+                                }
+                                .font(.footnote)             // tuỳ chọn, để nút nhỏ gọn
                             }
-                            .font(.footnote)
+                            .buttonStyle(.borderless)
                         }
-                        .buttonStyle(.borderless)     // giúp button trong header List bấm mượt
-                    }
-                    .padding(.top, 4)                  // canh nhẹ cho đẹp
                 }
 
                 // Saved list
-                Section(header: Text("ĐÃ LƯU")) {
-                    if filteredItems.isEmpty {
+                if filteredItems.isEmpty {
+                    Section {
                         emptyState
                             .listRowBackground(Color.clear)
-                    } else {
-                        ForEach(groupedKeys, id: \.self) { key in
-                            Section(key) {
-                                ForEach(filteredItemsByKey[key] ?? []) { network in
-                                    NavigationLink {
-                                        WiFiDetailView(item: network)
-                                            .environmentObject(store)
+                    } header: {
+                        Text("ĐÃ LƯU")
+                    }
+                } else {
+                    // Header "ĐÃ LƯU" phía trên các nhóm
+                    Section { } header: {
+                        Text("ĐÃ LƯU")
+                    }
+
+                    // Mỗi chữ cái là một Section top-level
+                    ForEach(groupedKeys, id: \.self) { key in
+                        Section(header: Text(key).textCase(.uppercase)) {
+                            ForEach(filteredItemsByKey[key] ?? []) { network in
+                                NavigationLink {
+                                    WiFiDetailView(item: network)
+                                        .environmentObject(store)
+                                } label: {
+                                    row(for: network)
+                                }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        confirmDelete = network.id
                                     } label: {
-                                        row(for: network)
+                                        Label("Xóa", systemImage: "trash")
                                     }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(role: .destructive) {
-                                            confirmDelete = network.id
-                                        } label: {
-                                            Label("Xóa", systemImage: "trash")
-                                        }
-                                        .tint(.red)
-                                    }
+                                    .tint(.red)
                                 }
                             }
                         }
@@ -197,7 +198,13 @@ struct ContentView: View {
     }
 
     private var groupedKeys: [String] {
-        filteredItemsByKey.keys.sorted()
+        let keys = Array(filteredItemsByKey.keys)
+        // Sắp xếp A→Z→… và để "#" luôn ở cuối
+        return keys.sorted { a, b in
+            if a == "#" { return false }
+            if b == "#" { return true }
+            return a.localizedStandardCompare(b) == .orderedAscending
+        }
     }
 
     private var emptyState: some View {
