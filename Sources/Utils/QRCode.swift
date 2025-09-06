@@ -1,51 +1,57 @@
-import SwiftUI
+import Foundation
 import CoreImage.CIFilterBuiltins
+import UIKit
 
-struct QRCodeView: View {
-    let text: String
-    private let context = CIContext()
-    private let filter = CIFilter.qrCodeGenerator()
+/// Tạo ảnh QR và ghi ra file tạm để ShareLink(item: URL)
+struct QRExport {
+    let imageText: String
 
-    var body: some View {
-        if let uiImage = generate() {
-            Image(uiImage: uiImage)
-                .interpolation(.none)
-                .resizable()
-                .scaledToFit()
-                .padding(8)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
-        } else {
-            Color.secondary.opacity(0.1)
-                .overlay(Text("QR lỗi").foregroundStyle(.secondary))
+    /// Ghi PNG QR ra file tạm, trả về URL để dùng với ShareLink(item:)
+    func makeTempFile(named filename: String? = nil) -> URL? {
+        guard let data = Self.makeQRPNG(from: imageText) else { return nil }
+
+        let name = (filename ?? "WiFi-QR-\(Self.safeFileName(from: imageText)).png")
+            .replacingOccurrences(of: " ", with: "-")
+
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qr_share", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent(name)
+
+        // Ghi đè nếu đã tồn tại
+        try? FileManager.default.removeItem(at: url)
+        do {
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            print("QRExport write error:", error)
+            return nil
         }
     }
 
-    private func generate() -> UIImage? {
-        let data = Data(text.utf8)
+    // MARK: - Helpers
+
+    /// Tạo PNG data từ chuỗi QR (CIQRCodeGenerator)
+    static func makeQRPNG(from string: String) -> Data? {
+        let data = Data(string.utf8)
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
         filter.setValue(data, forKey: "inputMessage")
-        guard let outputImage = filter.outputImage?
-                .transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-        else { return nil }
-        if let cgimg = context.createCGImage(outputImage, from: outputImage.extent) {
-            return UIImage(cgImage: cgimg)
-        }
-        return nil
-    }
-}
+        filter.setValue("M", forKey: "inputCorrectionLevel")
 
-extension WiFiNetwork {
-    /// Chuỗi chuẩn để tạo QR
-    var wifiQRString: String {
-        let t: String
-        switch security {
-        case .none, .wep: t = "nopass" // hoặc "WEP" nếu cần
-        case .wpa, .wpa2wpa3, .wpa3, .wpaEnterprise, .wpa2Enterprise, .wpa3Enterprise:
-            t = "WPA"
-        }
-        let escapedSSID = ssid.replacingOccurrences(of: ";", with: "\\;")
-        let pwd = (password ?? "").replacingOccurrences(of: ";", with: "\\;")
-        return "WIFI:T:\(t);S:\(escapedSSID);P:\(pwd);H:false;"
+        guard let outputImage = filter.outputImage else { return nil }
+
+        // scale để nét hơn
+        let scale: CGFloat = 10
+        let transformed = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+
+        guard let cgImage = context.createCGImage(transformed, from: transformed.extent) else { return nil }
+        let uiImage = UIImage(cgImage: cgImage)
+        return uiImage.pngData()
+    }
+
+    /// Tạo tên file an toàn từ chuỗi
+    private static func safeFileName(from text: String) -> String {
+        let invalid = CharacterSet(charactersIn: "/\\?%*|\"<>:")
+        return text.components(separatedBy: invalid).joined()
     }
 }
