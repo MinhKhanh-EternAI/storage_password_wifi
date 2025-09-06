@@ -29,7 +29,7 @@ struct ContentView: View {
                                     .foregroundStyle(.secondary)
                                     .font(.footnote)
                             } else {
-                                Text("Mạng không khả dụng")
+                                Text("Không kết nối")
                                     .font(.headline)
                                 Text("Vui lòng kết nối mạng")
                                     .foregroundStyle(.secondary)
@@ -147,7 +147,7 @@ struct ContentView: View {
             }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
             .onAppear { refreshSSID() }
-            .alert("Bạnó chắc chắn muốn xóa?", isPresented: Binding(get: {
+            .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
                 confirmDelete != nil
             }, set: { v in
                 if !v { confirmDelete = nil }
