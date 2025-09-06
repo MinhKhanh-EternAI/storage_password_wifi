@@ -1,32 +1,30 @@
+import Foundation
+import CoreImage
 import CoreImage.CIFilterBuiltins
 import UIKit
 
-enum QRCodeMaker {
-    static func wifiString(ssid: String, password: String?, security: SecurityType) -> String {
-        let auth = security.qrAuthToken ?? "nopass"
-        func esc(_ s: String) -> String {
-            s.replacingOccurrences(of: "\\", with: "\\\\")
-             .replacingOccurrences(of: ";", with: "\\;")
-             .replacingOccurrences(of: ",", with: "\\,")
-             .replacingOccurrences(of: ":", with: "\\:")
-             .replacingOccurrences(of: "\"", with: "\\\"")
-        }
-        if auth.lowercased() == "nopass" || (password ?? "").isEmpty {
-            return "WIFI:T:nopass;S:\(esc(ssid));;"
-        } else {
-            return "WIFI:T:\(auth);S:\(esc(ssid));P:\(esc(password!));;"
-        }
+enum QRCode {
+    static func wifiString(ssid: String, password: String?, security: Any) -> String {
+        let label = String(describing: security).lowercased()
+        let t = (label.contains("none") || label.contains("open") || label.contains("nopass")) ? "nopass" : "WPA"
+        let p = password ?? ""
+        // Theo chuẩn: WIFI:T:<auth>;S:<ssid>;P:<password>;;
+        return "WIFI:T:\(t);S:\(ssid);P:\(p);;"
     }
 
-    static func generate(from text: String, scale: CGFloat = 7) -> UIImage? {
-        let data = Data(text.utf8)
+    static func make(text: String, size: CGSize) -> UIImage? {
         let ctx = CIContext()
-        let f = CIFilter.qrCodeGenerator()
-        f.setValue(data, forKey: "inputMessage")
-        f.correctionLevel = "M"
-        guard let out = f.outputImage else { return nil }
-        let img = out.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        guard let cg = ctx.createCGImage(img, from: img.extent) else { return nil }
-        return UIImage(cgImage: cg)
+        let filter = CIFilter.qrCodeGenerator()
+        filter.setValue(Data(text.utf8), forKey: "inputMessage")
+
+        guard let output = filter.outputImage else { return nil }
+        let scaleX = size.width / output.extent.size.width
+        let scaleY = size.height / output.extent.size.height
+        let scaled = output.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+
+        if let cg = ctx.createCGImage(scaled, from: scaled.extent) {
+            return UIImage(cgImage: cg)
+        }
+        return nil
     }
 }

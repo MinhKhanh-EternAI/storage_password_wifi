@@ -2,26 +2,25 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>
-    <string>WiFiOffline</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.example.wifioffline</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+	<key>CFBundleName</key>
+	<string>WiFiOffline</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.example.wifioffline</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
 
-    <key>UILaunchStoryboardName</key>
-    <string>LaunchScreen</string>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
 
-    <key>UIApplicationSceneManifest</key>
-    <dict>
-        <key>UIApplicationSupportsMultipleScenes</key>
-        <false/>
-    </dict>
-
-    <!-- QUAN TRỌNG: Quyền vị trí để đọc tên Wi-Fi hiện tại -->
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Ứng dụng cần quyền vị trí để hiển thị tên Wi-Fi đang kết nối.</string>
+	<!-- Quyền vị trí để đọc SSID hiện tại (iOS 13+) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ứng dụng cần quyền vị trí để đọc tên Wi-Fi hiện tại.</string>
 </dict>
 </plist>
