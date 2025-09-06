@@ -1,86 +1,82 @@
 import SwiftUI
 
-enum FormMode {
-    case create
-    case edit
-}
+enum FormMode { case create, edit }
 
 struct WiFiFormView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var store: WiFiStore
-    @Environment(\.dismiss) var dismiss
-    
+
     let mode: FormMode
     @State var item: WiFiNetwork
-    
-    @State private var showSecurity = false
-    @State private var showMacPolicy = false
-    
+
     var body: some View {
         Form {
-            Section(header: Text("THÔNG TIN")) {
-                TextField("Tên", text: $item.ssid)
-                SecureField("Mật khẩu", text: Binding(
+            Section("THÔNG TIN") {
+                TextField("Tên mạng", text: $item.ssid)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                TextField("Mật khẩu", text: Binding(
                     get: { item.password ?? "" },
-                    set: { item.password = $0 }
+                    set: { item.password = $0.isEmpty ? nil : $0 }
                 ))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .privacySensitive(true)
             }
-            
-            Section(header: Text("BẢO MẬT")) {
-                Button {
-                    showSecurity = true
+
+            Section("BẢO MẬT") {
+                NavigationLink {
+                    SecurityPickerView(selection: $item.security)
                 } label: {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text(item.security.rawValue)
-                            .foregroundColor(.secondary)
+                        Text("\(item.security)") // hiển thị đơn giản, tránh lệ thuộc enum case tên gì
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
         }
-        .navigationTitle(mode == .create ? "Thêm Wi-Fi" : "Sửa Wi-Fi")
-        .navigationBarBackButtonHidden(true)
+        .navigationTitle(mode == .create ? "Thêm Wi-Fi" : item.ssid)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarLeading) {   // 👈 wrap trong ToolbarItemGroup
+            ToolbarItem(placement: .topBarLeading) {
                 Button("Hủy") { dismiss() }
             }
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Lưu") {
-                    if mode == .create {
-                        store.add(item)
-                    } else {
-                        store.upsert(item)   // 👈 đồng bộ với WiFiDetailView
-                    }
+                    store.upsert(item)     // dùng upsert để tránh lỗi dynamicMember/update
                     dismiss()
                 }
+                .fontWeight(.semibold)
             }
-        }
-        .sheet(isPresented: $showSecurity) {
-            SecurityPickerView(selected: $item.security)
         }
     }
 }
 
+// Picker đơn giản cho kiểu bảo mật (dựa trên CaseIterable nếu enum của bạn có)
 struct SecurityPickerView: View {
-    @Binding var selected: SecurityType
-    
+    @Binding var selection: WiFiNetwork.SecurityType
+
     var body: some View {
         List {
-            ForEach(SecurityType.allCases, id: \.self) { type in
+            ForEach(WiFiNetwork.SecurityType.allCases, id: \.self) { sec in
                 HStack {
-                    Text(type.rawValue)
+                    Text("\(sec)")
                     Spacer()
-                    if type == selected {
+                    if sec == selection {
                         Image(systemName: "checkmark")
-                            .foregroundColor(.blue)
+                            .foregroundStyle(.blue)
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    selected = type
-                }
+                .onTapGesture { selection = sec }
             }
         }
         .navigationTitle("Bảo mật")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
