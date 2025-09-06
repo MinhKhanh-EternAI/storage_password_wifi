@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: WiFiStore
+    @EnvironmentObject var theme: AppTheme
     @State private var currentSSID: String?
 
     var body: some View {
@@ -22,7 +23,6 @@ struct ContentView: View {
                     ForEach(store.items) { item in
                         NavigationLink(value: item) {
                             HStack(spacing: 12) {
-                                // QR icon bên phải trong cell
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.ssid).font(.headline)
                                     if let pwd = item.password, !pwd.isEmpty {
@@ -60,6 +60,11 @@ struct ContentView: View {
             .navigationTitle("Wi-Fi")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Góc trái: chọn chủ đề (icon mặt trời/mặt trăng)
+                ToolbarItem(placement: .topBarLeading) {
+                    ThemePickerButton()
+                }
+
                 // Góc phải: dấu ba chấm (nhập/xuất) + nút thêm
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
@@ -100,7 +105,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Dummy import/export placeholder (bạn nối vào real logic nếu muốn)
+    // MARK: - Dummy import/export placeholder
     private func exportWiFi() { /* TODO: xuất ra JSON / file */ }
     private func importWiFi() { /* TODO: đọc JSON / file */ }
 }

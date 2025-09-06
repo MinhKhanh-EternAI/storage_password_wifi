@@ -3,13 +3,14 @@ import SwiftUI
 @main
 struct WiFiOfflineApp: App {
     @StateObject private var store = WiFiStore()
-    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
+    @StateObject private var theme = AppTheme()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
-                .preferredColorScheme(themeMode.colorScheme)
+                .environmentObject(theme)
+                .preferredColorScheme(theme.colorScheme)
         }
     }
 }

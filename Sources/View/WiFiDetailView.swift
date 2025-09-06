@@ -19,12 +19,29 @@ struct WiFiDetailView: View {
                         .padding()
                         .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground)))
                         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.secondary.opacity(0.2)))
+                        .accessibilityLabel("Mã QR Wi-Fi")
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Thông tin").font(.headline)
                     HStack { Text("SSID"); Spacer(); Text(item.ssid) }
-                    HStack { Text("Mật khẩu"); Spacer(); Text(item.password ?? "—") }
+                    HStack {
+                        Text("Mật khẩu"); Spacer()
+                        if let pwd = item.password, !pwd.isEmpty {
+                            HStack(spacing: 8) {
+                                Text("••••••••")
+                                Button {
+                                    UIPasteboard.general.string = pwd
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Sao chép mật khẩu")
+                            }
+                        } else {
+                            Text("—")
+                        }
+                    }
                 }
                 .padding(.horizontal)
             }

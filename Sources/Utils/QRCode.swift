@@ -4,9 +4,8 @@ import CoreImage.CIFilterBuiltins
 import UIKit
 
 enum QRCode {
-    static func wifiString(ssid: String, password: String?, security: Any) -> String {
-        let label = String(describing: security).lowercased()
-        let t = (label.contains("none") || label.contains("open") || label.contains("nopass")) ? "nopass" : "WPA"
+    static func wifiString(ssid: String, password: String?, security: SecurityType) -> String {
+        let t = (security == .none) ? "nopass" : "WPA"
         let p = password ?? ""
         // Theo chuẩn: WIFI:T:<auth>;S:<ssid>;P:<password>;;
         return "WIFI:T:\(t);S:\(ssid);P:\(p);;"
