@@ -29,7 +29,7 @@ struct ContentView: View {
                                     .foregroundStyle(.secondary)
                                     .font(.footnote)
                             } else {
-                                Text("Không kết nối")
+                                Text("Mạng không khả dụng")
                                     .font(.headline)
                                 Text("Vui lòng kết nối mạng")
                                     .foregroundStyle(.secondary)
@@ -106,7 +106,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("Wi-Fi")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
@@ -121,6 +121,15 @@ struct ContentView: View {
                                             "circle.lefthalf.filled")
                     }
                 }
+
+                ToolbarItem(placement: .principal) {
+                    Text("Wi-Fi")
+                        .font(.headline)
+                        .fontWeight(.semibold)   // tuỳ chọn
+                        .lineLimit(1)
+                }
+
+
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
                         // Thêm rỗng
@@ -147,7 +156,7 @@ struct ContentView: View {
             }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
             .onAppear { refreshSSID() }
-            .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
+            .alert("Bạnó chắc chắn muốn xóa?", isPresented: Binding(get: {
                 confirmDelete != nil
             }, set: { v in
                 if !v { confirmDelete = nil }
@@ -236,7 +245,10 @@ struct ContentView: View {
 
     private func refreshSSID() {
         currentWiFi.fetchSSID { ssid in
-            store.currentSSID = ssid
+            DispatchQueue.main.async {
+                print("SSID fetched:", ssid ?? "nil")
+                store.currentSSID = ssid
+            }
         }
     }
 
