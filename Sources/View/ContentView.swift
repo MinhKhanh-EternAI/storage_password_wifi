@@ -94,17 +94,17 @@ struct ContentView: View {
             .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))            // giữ sạch separator
         } header: {
             // Header kiểu cũ (không overlay) để không chồng nhau
-            HStack {
+            HStack(spacing: 8) {
+                statusDot
                 Text("MẠNG HIỆN TẠI")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
+                    .font(.footnote)                 // cùng size/màu như key H/N...
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     refreshSSID()
                 } label: {
-                    Label("Làm mới", systemImage: "arrow.clockwise")
-                        .font(.footnote)
+                    Label("Làm mới", systemImage: "arrow.clockwise").font(.footnote)
                 }
                 .buttonStyle(.borderless)
             }
@@ -119,37 +119,41 @@ struct ContentView: View {
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
-                Text("ĐÃ LƯU")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
+                HStack(spacing: 8) {
+                    statusDot
+                    Text("ĐÃ LƯU")
+                        .textCase(.uppercase)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.top, 4)
             }
         } else {
             // Mỗi chữ cái là Section top-level
             ForEach(Array(groupedKeys.enumerated()), id: \.element) { index, key in
-                let items: [WiFiNetwork] = filteredItemsByKey[key] ?? []
-
+                let items = filteredItemsByKey[key] ?? []
                 Section {
                     ForEach(items) { network in
                         NavigationLink {
                             WiFiDetailView(item: network).environmentObject(store)
-                        } label: {
-                            row(for: network)
-                        }
+                        } label: { row(for: network) }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                confirmDelete = network.id
-                            } label: { Label("Xóa", systemImage: "trash") }
-                            .tint(.red)
+                            Button(role: .destructive) { confirmDelete = network.id } label: {
+                                Label("Xóa", systemImage: "trash")
+                            }.tint(.red)
                         }
                     }
                 } header: {
                     VStack(alignment: .leading, spacing: 2) {
                         if index == 0 {
-                            Text("ĐÃ LƯU")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
+                            HStack(spacing: 8) {
+                                statusDot
+                                Text("ĐÃ LƯU")
+                                    .textCase(.uppercase)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         Text(key).textCase(.uppercase)
                     }
@@ -161,7 +165,7 @@ struct ContentView: View {
     private var savedHeader: some View {
         HStack {
             Text("ĐÃ LƯU")
-                .font(.caption)
+                .font(.footnote)
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             Spacer()
@@ -259,7 +263,7 @@ struct ContentView: View {
                 Text(item.ssid)
                     .font(.headline)
                 HStack(spacing: 8) {
-                    SecureDots(text: item.password ?? "")
+                    SecureDots(text: item.password ?? "", font: .callout) // to hơn một chút
                 }
             }
             Spacer()
@@ -309,11 +313,11 @@ private struct SecureDots: View {
         if text.isEmpty {
             Text("Mở")
                 .foregroundStyle(.secondary)
-                .font(.subheadline)
+                .font(.font)
         } else {
             Text(String(repeating: "•", count: max(6, text.count)))
                 .foregroundStyle(.secondary)
-                .font(.subheadline)
+                .font(.font)
         }
     }
 }
@@ -341,4 +345,16 @@ extension View {
             self
         }
     }
+}
+
+private var isConnected: Bool {
+    if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+       !s.isEmpty { return true }
+    return false
+}
+
+private var statusDot: some View {
+    Circle()
+        .fill(isConnected ? Color.green : Color.red)
+        .frame(width: 8, height: 8)   // chấm nhỏ, tạo cảm giác “thụt” vào
 }
