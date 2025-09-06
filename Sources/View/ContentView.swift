@@ -1,6 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+// MARK: - Layout constants
+private let cellLeading: CGFloat = 16
+private let statusDotSize: CGFloat = 6
+
 struct ContentView: View {
     @EnvironmentObject var store: WiFiStore
     @EnvironmentObject var theme: ThemeManager
@@ -17,7 +21,7 @@ struct ContentView: View {
         NavigationStack {
             listContent
                 .listStyle(.insetGrouped)
-                .listSectionSpacingCompat(4) // iOS 17+: 8pt. iOS 16: bỏ qua
+                .listSectionSpacingCompat(4) // iOS 17+: 4pt. iOS 16: bỏ qua
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { topToolbar }
                 .searchable(text: $searchText,
@@ -63,9 +67,9 @@ struct ContentView: View {
         Section {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    if isConnected {
-                        Text(store.currentSSID!.trimmingCharacters(in: .whitespacesAndNewlines))
-                            .font(.headline)
+                    if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !ssid.isEmpty {
+                        Text(ssid).font(.headline)
                         Text("Đang kết nối").foregroundStyle(.secondary).font(.footnote)
                     } else {
                         Text("Không khả dụng").font(.headline)
@@ -74,8 +78,9 @@ struct ContentView: View {
                 }
                 Spacer()
                 Button {
-                    if isConnected {
-                        pathToForm(with: WiFiNetwork(ssid: store.currentSSID!.trimmingCharacters(in: .whitespacesAndNewlines), password: nil))
+                    if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !ssid.isEmpty {
+                        pathToForm(with: WiFiNetwork(ssid: ssid, password: nil))
                     } else {
                         pathToForm(with: newItem())
                     }
@@ -87,7 +92,7 @@ struct ContentView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
-            // **Quan trọng**: cho cell dùng cùng lề với List
+            // Cùng lề với List
             .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
             .listRowSeparator(.hidden)
         } header: {
@@ -105,24 +110,15 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderless)
             }
-            // **Cùng lề trái** với cell
-            .padding(.leading, cellLeading)
+            .padding(.leading, cellLeading) // cùng lề trái với cell
             .padding(.top, 4)
         }
     }
 
     @ViewBuilder
-
-    private var savedStatusDot: some View {
-        Circle()
-            .fill(hasSavedNetworks ? .green : .red) // xanh: có lưu, đỏ: chưa
-            .frame(width: statusDotSize, height: statusDotSize)
-    }
-
-
     private var savedListSection: some View {
         if filteredItems.isEmpty {
-            Section {   
+            Section {
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
@@ -134,12 +130,12 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
-                .padding(.leading, cellLeading) // cùng lề trái
+                .padding(.leading, cellLeading)
                 .padding(.top, 4)
             }
         } else {
-            // Header "ĐÃ LƯU" (chỉ một lần)
-            Section { } header: {
+            // Header "ĐÃ LƯU" một lần
+            Section { EmptyView() } header: {
                 HStack(spacing: 8) {
                     savedStatusDot
                     Text("ĐÃ LƯU")
@@ -148,7 +144,7 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
-                .padding(.leading, cellLeading) // cùng lề trái
+                .padding(.leading, cellLeading)
                 .padding(.top, 4)
             }
 
@@ -162,12 +158,14 @@ struct ContentView: View {
                         } label: {
                             row(for: network)
                         }
-                        // Giữ lề trái bằng card "Mạng hiện tại"
+                        // Lề trái bằng card "Mạng hiện tại"
                         .listRowInsets(EdgeInsets(top: 0, leading: cellLeading, bottom: 0, trailing: cellLeading))
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 confirmDelete = network.id
-                            } label: { Label("Xóa", systemImage: "trash") }
+                            } label: {
+                                Label("Xóa", systemImage: "trash")
+                            }
                             .tint(.red)
                         }
                     }
@@ -176,26 +174,21 @@ struct ContentView: View {
                         .textCase(.uppercase)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .padding(.leading, cellLeading) // cùng lề trái
+                        .padding(.leading, cellLeading)
                         .padding(.top, 2)
                 }
             }
         }
     }
 
-
-    private var savedHeader: some View {
-        HStack {
-            Text("ĐÃ LƯU")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            Spacer()
-        }
-        .padding(.top, 4)
+    // Dot "ĐÃ LƯU": xanh khi có item, đỏ khi rỗng
+    private var savedStatusDot: some View {
+        Circle()
+            .fill(hasSavedNetworks ? .green : .red)
+            .frame(width: statusDotSize, height: statusDotSize)
     }
 
-    // Toolbar tách riêng để giảm độ phức tạp của body
+    // Toolbar tách riêng
     @ToolbarContentBuilder
     private var topToolbar: some ToolbarContent {
         // Trái
@@ -207,9 +200,9 @@ struct ContentView: View {
                     }
                 }
             } label: {
-                Image(systemName: theme.mode == .dark ? "moon.fill" :
-                                    theme.mode == .light ? "sun.max.fill" :
-                                    "circle.lefthalf.filled")
+                Image(systemName: theme.mode == .dark ? "moon.fill"
+                                                      : theme.mode == .light ? "sun.max.fill"
+                                                      : "circle.lefthalf.filled")
             }
         }
 
@@ -245,6 +238,7 @@ struct ContentView: View {
         showingAdd = true
         let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
+        // Cách đơn giản (có cảnh báo iOS 15, không chặn build)
         UIApplication.shared.windows.first?.rootViewController?.present(hosting, animated: true)
     }
 
@@ -285,7 +279,7 @@ struct ContentView: View {
                 Text(item.ssid)
                     .font(.headline)
                 HStack(spacing: 8) {
-                    SecureDots(text: item.password ?? "") // to hơn một chút
+                    SecureDots(text: item.password ?? "")
                 }
             }
             Spacer()
@@ -301,7 +295,6 @@ struct ContentView: View {
 
     private func refreshSSID() {
         currentWiFi.fetchSSID { ssid in
-            // Cập nhật UI trên main thread cho chắc chắn
             DispatchQueue.main.async { store.currentSSID = ssid }
         }
     }
@@ -328,15 +321,11 @@ struct ContentView: View {
 
     private var isConnected: Bool {
         if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
-        !s.isEmpty { return true }
+           !s.isEmpty { return true }
         return false
     }
 
-    private var statusDot: some View {
-        Circle()
-            .fill(isConnected ? Color.green : Color.red)
-            .frame(width: 8, height: 8)   // chấm nhỏ, tạo cảm giác “thụt” vào
-    }
+    private var hasSavedNetworks: Bool { !store.items.isEmpty }
 }
 
 // MARK: - Small helpers used in ContentView
@@ -374,21 +363,9 @@ extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
-            self.listSectionSpacing(6)   // hoặc .listSectionSpacing(.compact)
+            self.listSectionSpacing(spacing) // dùng đúng tham số
         } else {
             self
         }
     }
 }
-
-
-// MARK: - Layout constants & state helpers
-private let cellLeading: CGFloat = 16        // lề chuẩn của List .insetGrouped
-private let statusDotSize: CGFloat = 6
-
-private var isConnected: Bool {
-    if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
-       !s.isEmpty { return true }
-    return false
-}
-private var hasSavedNetworks: Bool { !store.items.isEmpty }
