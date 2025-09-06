@@ -125,7 +125,7 @@ struct ContentView: View {
                 // GIỮA (tiêu đề)
                 ToolbarItem(placement: .principal) {
                     Text("Wi-Fi")
-                        .font(.system(size: 22, weight: .bold)) // tăng size (20–24 là đẹp)
+                        .font(.system(size: 20, weight: .bold)) // tăng size (20–24 là đẹp)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)                 // co lại chút nếu màn nhỏ
                 }
@@ -226,8 +226,6 @@ struct ContentView: View {
             Spacer()
             Image(systemName: "qrcode")
                 .foregroundStyle(.secondary)
-            Image(systemName: "chevron.right")
-                .foregroundStyle(.tertiary)
         }
         .contentShape(Rectangle())
     }
