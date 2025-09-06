@@ -245,7 +245,10 @@ struct ContentView: View {
 
     private func refreshSSID() {
         currentWiFi.fetchSSID { ssid in
-            store.currentSSID = ssid
+            DispatchQueue.main.async {
+                print("SSID fetched:", ssid ?? "nil")
+                store.currentSSID = ssid
+            }
         }
     }
 
