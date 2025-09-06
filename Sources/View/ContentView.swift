@@ -313,11 +313,11 @@ private struct SecureDots: View {
         if text.isEmpty {
             Text("Mở")
                 .foregroundStyle(.secondary)
-                .font(.font)
+                .font(.footnote)
         } else {
             Text(String(repeating: "•", count: max(6, text.count)))
                 .foregroundStyle(.secondary)
-                .font(.font)
+                .font(.footnote)
         }
     }
 }
