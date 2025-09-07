@@ -34,7 +34,7 @@ struct WiFiFormView: View {
                 }
                 .padding(.vertical, 2)
 
-                // MẬT KHẨU (không tự đổi security tại đây)
+                // MẬT KHẨU (cấm khoảng trắng)
                 HStack(spacing: 12) {
                     Text("Mật khẩu")
                         .foregroundColor(.primary)
@@ -42,10 +42,7 @@ struct WiFiFormView: View {
 
                     SecureField(
                         "",
-                        text: Binding<String>(
-                            get: { item.password ?? "" },
-                            set: { item.password = $0.isEmpty ? nil : $0 }
-                        ),
+                        text: passwordBindingNoSpace,
                         prompt: Text("Mật khẩu")
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -60,7 +57,7 @@ struct WiFiFormView: View {
                     .foregroundColor(.secondary)
             }
 
-            // BẢO MẬT (người dùng tự chọn; chỉ bị ép .none khi Lưu nếu không có mật khẩu)
+            // BẢO MẬT (người dùng tự chọn; chỉ ép .none khi Lưu nếu không có mật khẩu)
             Section {
                 NavigationLink {
                     SecurityPickerView(
@@ -108,6 +105,17 @@ struct WiFiFormView: View {
         !item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // Cấm khoảng trắng trong mật khẩu
+    private var passwordBindingNoSpace: Binding<String> {
+        Binding(
+            get: { item.password ?? "" },
+            set: { val in
+                let cleaned = val.filter { !$0.isWhitespace }
+                item.password = cleaned.isEmpty ? nil : cleaned
+            }
+        )
+    }
+
     private func save() {
         // Phải có tên
         guard isSSIDValid else {
@@ -115,7 +123,7 @@ struct WiFiFormView: View {
             return
         }
 
-        // ✅ Chỉ tại thời điểm bấm Lưu: nếu mật khẩu trống -> ép security = .none
+        // Chỉ lúc bấm Lưu: nếu mật khẩu trống -> ép bảo mật = Không có
         let pwdEmpty = (item.password ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if pwdEmpty {
             item.security = .none

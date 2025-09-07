@@ -13,7 +13,11 @@ struct ContentView: View {
     @State private var confirmDelete: UUID?
     private let currentWiFi = CurrentWiFi()
 
-    // ✅ Cho phép chọn .json, .js, .mjs, .cjs, .txt và cả file bất kỳ
+    // ✅ Chọn nhiều
+    @State private var selecting = false
+    @State private var selectedIDs = Set<UUID>()
+
+    // Cho phép chọn .json/.txt và cả file bất kỳ + js/mjs/cjs
     private let importerTypes: [UTType] = {
         var types: [UTType] = [.json, .text, .item, .data]
         if let js  = UTType(filenameExtension: "js")  { types.append(js) }
@@ -52,13 +56,36 @@ struct ContentView: View {
             defaultFilename: "wifi_networks.json",
             onCompletion: { _ in }
         )
-        // Import (.json / .js / .mjs / .cjs / .txt / bất kỳ file)
+        // Import
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: importerTypes,
             allowsMultipleSelection: false
         ) { result in
             handleImport(result)
+        }
+        // ✅ Thanh hành động khi đang chọn nhiều
+        .safeAreaInset(edge: .bottom) {
+            if selecting {
+                HStack(spacing: 12) {
+                    Button(role: .destructive) {
+                        deleteSelected()
+                    } label: {
+                        Text(selectedIDs.isEmpty ? "Xóa" : "Xóa (\(selectedIDs.count))")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Hủy") {
+                        selecting = false
+                        selectedIDs.removeAll()
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+            }
         }
     }
 
@@ -81,12 +108,12 @@ struct ContentView: View {
                        !ssid.isEmpty {
                         Text(ssid).font(.headline)
                         Text("Đang kết nối")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .font(.footnote)
                     } else {
                         Text("Không khả dụng").font(.headline)
                         Text("Vui lòng kết nối mạng")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .font(.footnote)
                     }
                 }
@@ -94,7 +121,6 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
-                        // Mặc định bảo mật WPA2/WPA3 khi thêm từ mạng hiện tại
                         pathToForm(with: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
                     } else {
                         pathToForm(with: newItem())
@@ -103,6 +129,7 @@ struct ContentView: View {
                     Image(systemName: "plus").font(.title3)
                 }
                 .buttonStyle(.borderless)
+                .disabled(selecting)
             }
 
         } header: {
@@ -111,7 +138,7 @@ struct ContentView: View {
                 Text("MẠNG HIỆN TẠI")
                     .textCase(.uppercase)
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     refreshSSID()
@@ -119,6 +146,7 @@ struct ContentView: View {
                     Label("Làm mới", systemImage: "arrow.clockwise").font(.footnote)
                 }
                 .buttonStyle(.borderless)
+                .disabled(selecting)
             }
             .padding(.top, 4)
         }
@@ -136,7 +164,7 @@ struct ContentView: View {
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
                         .font(.footnote)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Spacer()
                 }
                 .padding(.top, 4)
@@ -147,13 +175,26 @@ struct ContentView: View {
                 let items = filteredItemsByKey[key] ?? []
                 Section {
                     ForEach(items) { network in
-                        NavigationLink {
-                            WiFiDetailView(item: network).environmentObject(store)
-                        } label: { row(for: network) }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) { confirmDelete = network.id } label: {
-                                Label("Xóa", systemImage: "trash")
-                            }.tint(.red)
+                        if selecting {
+                            // ✅ Chế độ chọn nhiều: không điều hướng
+                            Button {
+                                toggleSelect(network.id)
+                            } label: {
+                                row(for: network, selecting: true, selected: selectedIDs.contains(network.id))
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions { } // tắt swipe khi chọn nhiều
+                        } else {
+                            NavigationLink {
+                                WiFiDetailView(item: network).environmentObject(store)
+                            } label: {
+                                row(for: network, selecting: false, selected: false)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) { confirmDelete = network.id } label: {
+                                    Label("Xóa", systemImage: "trash")
+                                }.tint(.red)
+                            }
                         }
                     }
                 } header: {
@@ -164,7 +205,7 @@ struct ContentView: View {
                                 Text("ĐÃ LƯU")
                                     .textCase(.uppercase)
                                     .font(.footnote)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                             .padding(.top, 4)
                         }
@@ -179,7 +220,7 @@ struct ContentView: View {
         HStack {
             Text("ĐÃ LƯU")
                 .font(.footnote)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .textCase(.uppercase)
             Spacer()
         }
@@ -191,16 +232,23 @@ struct ContentView: View {
     private var topToolbar: some ToolbarContent {
         // Trái
         ToolbarItem(placement: .topBarLeading) {
-            Menu {
-                Picker("Giao diện", selection: $theme.mode) {
-                    ForEach(ThemeMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
+            if selecting {
+                Button("Xong") {
+                    selecting = false
+                    selectedIDs.removeAll()
                 }
-            } label: {
-                Image(systemName: theme.mode == .dark ? "moon.fill" :
-                                    theme.mode == .light ? "sun.max.fill" :
-                                    "circle.lefthalf.filled")
+            } else {
+                Menu {
+                    Picker("Giao diện", selection: $theme.mode) {
+                        ForEach(ThemeMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                } label: {
+                    Image(systemName: theme.mode == .dark ? "moon.fill" :
+                                        theme.mode == .light ? "sun.max.fill" :
+                                        "circle.lefthalf.filled")
+                }
             }
         }
 
@@ -214,18 +262,28 @@ struct ContentView: View {
 
         // Phải
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button { pathToForm(with: newItem()) } label: {
-                Image(systemName: "plus")
-            }
-            Menu {
-                Button { prepareExport(); showingExporter = true } label: {
-                    Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
+            if !selecting {
+                Button { pathToForm(with: newItem()) } label: {
+                    Image(systemName: "plus")
                 }
-                Button { showingImporter = true } label: {
-                    Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
+                Menu {
+                    // ✅ Mục “Chọn Wi-Fi” như iOS
+                    Button {
+                        selecting = true
+                        selectedIDs.removeAll()
+                    } label: {
+                        Label("Chọn Wi-Fi", systemImage: "checkmark.circle")
+                    }
+
+                    Button { prepareExport(); showingExporter = true } label: {
+                        Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
+                    }
+                    Button { showingImporter = true } label: {
+                        Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
-            } label: {
-                Image(systemName: "ellipsis.circle")
             }
         }
     }
@@ -269,14 +327,19 @@ struct ContentView: View {
         HStack(spacing: 12) {
             Image(systemName: "wifi.slash")
             Text("Chưa có mạng nào được lưu")
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 16)
     }
 
-    private func row(for item: WiFiNetwork) -> some View {
-        HStack {
+    // Row: hiển thị bình thường hoặc kèm checkbox khi đang chọn
+    private func row(for item: WiFiNetwork, selecting: Bool, selected: Bool) -> some View {
+        HStack(spacing: 12) {
+            if selecting {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(selected ? .blue : .tertiary)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.ssid)
                     .font(.headline)
@@ -285,14 +348,30 @@ struct ContentView: View {
                 }
             }
             Spacer()
-            Image(systemName: "qrcode")
-                .foregroundColor(.secondary)
+            if !selecting {
+                Image(systemName: "qrcode")
+                    .foregroundStyle(.secondary)
+            }
         }
         .contentShape(Rectangle())
     }
 
+    private func toggleSelect(_ id: UUID) {
+        if selectedIDs.contains(id) {
+            selectedIDs.remove(id)
+        } else {
+            selectedIDs.insert(id)
+        }
+    }
+
+    private func deleteSelected() {
+        guard !selectedIDs.isEmpty else { return }
+        store.items.removeAll { selectedIDs.contains($0.id) }
+        selectedIDs.removeAll()
+        selecting = false
+    }
+
     private func newItem() -> WiFiNetwork {
-        // Mặc định WPA2/WPA3 khi thêm mới
         WiFiNetwork(ssid: "", password: nil, security: .wpa2wpa3)
     }
 
@@ -306,7 +385,7 @@ struct ContentView: View {
         exportDoc = WiFiJSONDocument(networks: store.items)
     }
 
-    // MARK: - Import (.json / .js / .mjs / .cjs / .txt / any)
+    // MARK: - Import
 
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
@@ -319,7 +398,6 @@ struct ContentView: View {
                 let rawData = try Data(contentsOf: url)
                 let ext = url.pathExtension.lowercased()
 
-                // Nếu .js / .txt / .mjs / .cjs: lột JS wrapper để lấy JSON thuần
                 let dataForDecode: Data
                 if ["js", "txt", "mjs", "cjs"].contains(ext) {
                     guard let text = String(data: rawData, encoding: .utf8) else {
@@ -334,7 +412,6 @@ struct ContentView: View {
                     dataForDecode = rawData
                 }
 
-                // Thử decode [WiFiNetwork] hoặc { "items": [...] }
                 let decoder = JSONDecoder()
                 var imported: [WiFiNetwork]?
 
@@ -351,7 +428,6 @@ struct ContentView: View {
                     throw ImportError.empty
                 }
 
-                // Merge & sort
                 merge(list)
                 store.sortInPlace()
 
@@ -364,7 +440,6 @@ struct ContentView: View {
         }
     }
 
-    // Bóc JSON từ text có JS wrapper (const data = [...]; / export default [...])
     private func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let first = trimmed.first, first == "[" || first == "{" {
@@ -381,7 +456,6 @@ struct ContentView: View {
         return trimmed
     }
 
-    // Gộp: ưu tiên trùng id, nếu không có id trùng thì ghép theo ssid (normalize)
     private func merge(_ incoming: [WiFiNetwork]) {
         var indexByID: [UUID: Int] = [:]
         var indexBySSID: [String: Int] = [:]
@@ -389,7 +463,6 @@ struct ContentView: View {
             indexByID[it.id] = i
             indexBySSID[norm(it.ssid)] = i
         }
-
         for nw in incoming {
             if let idx = indexByID[nw.id] {
                 store.items[idx] = nw
@@ -405,7 +478,6 @@ struct ContentView: View {
         s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    // Hỗ trợ báo lỗi import
     private enum ImportError: Error {
         case invalidEncoding
         case empty
@@ -417,14 +489,12 @@ struct ContentView: View {
         return false
     }
 
-    // Chấm trạng thái cho "MẠNG HIỆN TẠI" (xanh/đỏ)
     private var statusDot: some View {
         Circle()
             .fill(isConnected ? Color.green : Color.red)
             .frame(width: 8, height: 8)
     }
 
-    // Chấm trạng thái riêng cho "ĐÃ LƯU"
     private var savedStatusDot: some View {
         Circle()
             .fill(hasSavedNetworks ? Color.green : Color.orange)
@@ -441,11 +511,11 @@ private struct SecureDots: View {
     var body: some View {
         if text.isEmpty {
             Text("Không bảo mật")
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .font(.footnote)
         } else {
             Text(String(repeating: "•", count: max(6, text.count)))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .font(.title3)
         }
     }
@@ -469,7 +539,7 @@ extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
-            self.listSectionSpacing(spacing)   // hoặc .compact
+            self.listSectionSpacing(spacing)
         } else {
             self
         }

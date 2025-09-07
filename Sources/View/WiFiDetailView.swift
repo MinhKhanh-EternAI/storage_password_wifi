@@ -7,14 +7,12 @@ struct WiFiDetailView: View {
     @State var item: WiFiNetwork
     @State private var showDeleteAlert = false
     @State private var copied = false
-    @State private var revealPassword = false
 
     var body: some View {
         List {
             infoSection
             securitySection
             qrSection
-            saveSection
         }
         .navigationTitle(item.ssid.isEmpty ? "Wi-Fi" : item.ssid)
         .navigationBarTitleDisplayMode(.inline)
@@ -27,6 +25,21 @@ struct WiFiDetailView: View {
             }
         }
         .toast(isPresented: $copied, text: "Đã sao chép mật khẩu")
+        // Nút Lưu cố định dưới – nền xanh chữ trắng
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                let pwdEmpty = (item.password ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                if pwdEmpty { item.security = .none }
+                store.upsert(item)
+            } label: {
+                Text("Lưu thông tin")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
     }
 
     // MARK: - Sections
@@ -53,59 +66,29 @@ struct WiFiDetailView: View {
             }
             .padding(.vertical, 2)
 
-            // MẬT KHẨU
+            // MẬT KHẨU (hiện luôn, 1 dòng – cắt giữa; cấm khoảng trắng; long-press để copy)
             HStack(spacing: 12) {
                 Text("Mật khẩu")
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .leading)
 
-                ZStack(alignment: .trailing) {
-                    Group {
-                        if revealPassword {
-                            TextField(
-                                "",
-                                text: passwordBinding,
-                                prompt: Text("Mật khẩu")
-                            )
-                        } else {
-                            SecureField(
-                                "",
-                                text: passwordBinding,
-                                prompt: Text("Mật khẩu")
-                            )
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 2)
-                    // Chạm vào vùng nhập để hiện/ẩn
-                    .contentShape(Rectangle())
-                    .onTapGesture { revealPassword.toggle() }
-                    // Long-press để copy nhanh
-                    .onLongPressGesture {
-                        let pwd = (item.password ?? "")
-                        if !pwd.isEmpty {
-                            UIPasteboard.general.string = pwd
-                            copied = true
-                        }
-                    }
-
-                    HStack(spacing: 8) {
-                        // Nút hiện/ẩn mắt
-                        Button {
-                            revealPassword.toggle()
-                        } label: {
-                            Image(systemName: revealPassword ? "eye.slash" : "eye")
-                                .imageScale(.medium)
-                        }
-
-                        // Nút Sao chép (chỉ hiện khi có mật khẩu)
-                        if let pwd = item.password, !pwd.isEmpty {
-                            Button("Sao chép") {
-                                UIPasteboard.general.string = pwd
-                                copied = true
-                            }
-                            .buttonStyle(.bordered)
-                        }
+                TextField(
+                    "",
+                    text: passwordBindingNoSpace,
+                    prompt: Text("Mật khẩu")
+                )
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .textContentType(.password)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 2)
+                .onLongPressGesture {
+                    let pwd = (item.password ?? "")
+                    if !pwd.isEmpty {
+                        UIPasteboard.general.string = pwd
+                        copied = true
                     }
                 }
             }
@@ -144,21 +127,18 @@ struct WiFiDetailView: View {
 
     private var qrSection: some View {
         Section {
-            // QR gọn và cân đối
+            // 1 khung duy nhất, QR lớn vừa phải
+            let maxW = UIScreen.main.bounds.width
+            let size = min(maxW - 56, 320)
+
             VStack {
-                let size = min(UIScreen.main.bounds.width - 64, 300)
                 QRCodeView(text: item.wifiQRString)
                     .frame(width: size, height: size)
                     .padding(14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color(.systemBackground))
-                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
                     )
-                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 3)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
@@ -171,30 +151,17 @@ struct WiFiDetailView: View {
         }
     }
 
-    private var saveSection: some View {
-        Section {
-            Button {
-                store.upsert(item)
-            } label: {
-                Text("Lưu thông tin")
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-        }
-    }
-
     // MARK: - Toolbar
 
     private var topMenu: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
-                // Chia sẻ ảnh QR
                 if let url = QRExport(imageText: item.wifiQRString)
                     .makeTempFile(named: "WiFi-QR-\(item.ssid).png") {
                     ShareLink(item: url) {
                         Label("Chia sẻ QR", systemImage: "square.and.arrow.up")
                     }
                 }
-
                 Button(role: .destructive) {
                     showDeleteAlert = true
                 } label: {
@@ -208,10 +175,14 @@ struct WiFiDetailView: View {
 
     // MARK: - Bindings
 
-    private var passwordBinding: Binding<String> {
+    // Cấm khoảng trắng trong mật khẩu
+    private var passwordBindingNoSpace: Binding<String> {
         Binding(
             get: { item.password ?? "" },
-            set: { item.password = $0.isEmpty ? nil : $0 }
+            set: { newVal in
+                let cleaned = newVal.filter { !$0.isWhitespace }
+                item.password = cleaned.isEmpty ? nil : cleaned
+            }
         )
     }
 }
