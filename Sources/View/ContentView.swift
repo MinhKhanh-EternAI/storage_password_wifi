@@ -13,11 +13,10 @@ struct ContentView: View {
     @State private var confirmDelete: UUID?
     private let currentWiFi = CurrentWiFi()
 
-    // Chế độ chọn nhiều
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
 
-    // Loại file cho import (tránh .item/.data để iOS 16 không khóa nút Mở)
+    // ✓ Nới lỏng loại tệp: thêm public.data để tránh “chọn được nhưng không mở”
     private let importerTypes: [UTType] = {
         var types: [UTType] = []
         if let json = UTType(filenameExtension: "json") { types.append(json) }
@@ -25,6 +24,7 @@ struct ContentView: View {
         if let mjs  = UTType(filenameExtension: "mjs")  { types.append(mjs) }
         if let cjs  = UTType(filenameExtension: "cjs")  { types.append(cjs) }
         if let txt  = UTType(filenameExtension: "txt")  { types.append(txt) }
+        if let data = UTType(importedAs: "public.data") { types.append(data) } // fallback
         return types
     }()
 
@@ -35,7 +35,7 @@ struct ContentView: View {
                 .listSectionSpacingCompat(4)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { topToolbar }
-                // ✅ Tìm kiếm luôn cố định khi lướt
+                // ✓ Search luôn cố định khi cuộn
                 .searchable(text: $searchText,
                             placement: .navigationBarDrawer(displayMode: .always),
                             prompt: "Search")
@@ -51,7 +51,6 @@ struct ContentView: View {
                     }
                 }
         }
-        // Export
         .fileExporter(
             isPresented: $showingExporter,
             document: exportDoc,
@@ -59,7 +58,6 @@ struct ContentView: View {
             defaultFilename: "wifi_networks.json",
             onCompletion: { _ in }
         )
-        // Import (.json / .js / .mjs / .cjs / .txt)
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: importerTypes,

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct WiFiDetailView: View {
     @EnvironmentObject var store: WiFiStore
@@ -9,9 +10,12 @@ struct WiFiDetailView: View {
     @State private var copied = false
     @State private var savedToast = false
 
-    // soạn thảo mật khẩu (chặn space khi gõ)
+    // Soạn thảo mật khẩu (chặn space khi gõ)
     @State private var pwDraft: String = ""
-    @FocusState private var focusPassword: Bool
+
+    // Quản lý focus để ẩn bàn phím cho cả tên & mật khẩu
+    private enum Field { case ssid, password }
+    @FocusState private var focusedField: Field?
 
     var body: some View {
         List {
@@ -20,10 +24,11 @@ struct WiFiDetailView: View {
             qrSection
         }
         .onAppear { pwDraft = item.password ?? "" }
-        .scrollDismissesKeyboard(.immediately)               // scroll là ẩn phím
-        .simultaneousGesture(TapGesture().onEnded {          // tap ra ngoài là ẩn phím
-            focusPassword = false
-        })
+        // Tap/scroll là ẩn bàn phím
+        .scrollDismissesKeyboard(.immediately)
+        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
+        // Vuốt từ mép trái để "Trở về" (kể cả khi dùng back tuỳ biến)
+        .background(EnableSwipeBack())
         .navigationTitle(item.ssid.isEmpty ? "Wi-Fi" : item.ssid)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -41,9 +46,7 @@ struct WiFiDetailView: View {
         }
         .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
             Button("Hủy", role: .cancel) {}
-            Button("Xóa", role: .destructive) {
-                store.delete(item.id); dismiss()
-            }
+            Button("Xóa", role: .destructive) { store.delete(item.id); dismiss() }
         }
         // Toasts
         .toast(isPresented: $copied, text: "Đã sao chép mật khẩu")
@@ -51,13 +54,14 @@ struct WiFiDetailView: View {
         // Nút Lưu cố định dưới
         .safeAreaInset(edge: .bottom) {
             Button {
-                focusPassword = false                      // ẩn bàn phím
+                // Ẩn bàn phím trước khi lưu
+                hideKeyboard()
+
                 if (item.password ?? "").isEmpty { item.security = .none }
                 store.upsert(item)
                 savedToast = true
             } label: {
-                Text("Lưu thông tin")
-                    .frame(maxWidth: .infinity)
+                Text("Lưu thông tin").frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -79,6 +83,7 @@ struct WiFiDetailView: View {
                     .frame(width: labelWidth, alignment: .leading)
 
                 TextField("", text: $item.ssid, prompt: Text("Tên mạng"))
+                    .focused($focusedField, equals: .ssid)
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -86,47 +91,34 @@ struct WiFiDetailView: View {
             }
             .padding(.vertical, 2)
 
-            // MẬT KHẨU – có icon copy bên phải, không bị chữ đè lên
+            // MẬT KHẨU — TextField chỉnh sửa như soạn text + icon copy bên phải
             HStack(spacing: 12) {
                 Text("Mật khẩu")
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .leading)
 
                 ZStack(alignment: .trailing) {
-                    if focusPassword {
-                        // TextField khi đang chỉnh sửa
-                        TextField("", text: $pwDraft, prompt: Text("Mật khẩu"))
-                            .focused($focusPassword)
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                            .textContentType(.password)
-                            .keyboardType(.asciiCapable)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, 2)
-                            .padding(.trailing, 36) // chừa chỗ cho icon
-                            .submitLabel(.done)
-                            .onSubmit { focusPassword = false }
-                            // chặn space khi gõ
-                            .onChange(of: pwDraft) { newVal in
-                                let cleaned = newVal.filter { !$0.isWhitespace }
-                                if cleaned != newVal { pwDraft = cleaned }
-                                item.password = cleaned.isEmpty ? nil : cleaned
-                            }
-                    } else {
-                        // Dạng hiển thị rút gọn (không focus)
-                        Text(truncated(pwDraft))
-                            .foregroundColor(pwDraft.isEmpty ? .secondary : .primary)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, 2)
-                            .padding(.trailing, 36)
-                            .contentShape(Rectangle())
-                            .onTapGesture { focusPassword = true }
-                    }
+                    TextField("", text: $pwDraft, prompt: Text("Mật khẩu"))
+                        .focused($focusedField, equals: .password)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .textContentType(.password)
+                        .keyboardType(.asciiCapable)
+                        .lineLimit(1)
+                        .truncationMode(.tail)      // hiển thị 1 dòng, dài thì "…"
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 2)
+                        .padding(.trailing, 36)    // chừa chỗ cho icon
+                        .submitLabel(.done)
+                        .onSubmit { hideKeyboard() }
+                        // CHẶN khoảng trắng ngay khi gõ
+                        .onChange(of: pwDraft) { newVal in
+                            let cleaned = newVal.filter { !$0.isWhitespace }
+                            if cleaned != newVal { pwDraft = cleaned }   // loại space tức thời
+                            item.password = cleaned.isEmpty ? nil : cleaned
+                        }
 
-                    // Icon copy
+                    // Icon copy (không bị chữ đè lên)
                     Button {
                         let pwd = item.password ?? ""
                         if !pwd.isEmpty {
@@ -136,6 +128,7 @@ struct WiFiDetailView: View {
                     } label: {
                         Image(systemName: "doc.on.doc")
                             .imageScale(.medium)
+                            .padding(.trailing, 4)
                     }
                     .buttonStyle(.plain)
                 }
@@ -158,8 +151,7 @@ struct WiFiDetailView: View {
                 HStack {
                     Text("Bảo mật")
                     Spacer()
-                    Text(item.security.rawValue)
-                        .foregroundColor(.secondary)
+                    Text(item.security.rawValue).foregroundColor(.secondary)
                 }
             }
         } header: {
@@ -216,12 +208,23 @@ struct WiFiDetailView: View {
 
     // MARK: - Helpers
 
-    private func truncated(_ s: String) -> String {
-        guard !s.isEmpty else { return "Mật khẩu" } // giống placeholder khi rỗng
-        if s.count > 20 {
-            let end = s.index(s.startIndex, offsetBy: 17)
-            return String(s[..<end]) + "..."
-        }
-        return s
+    @MainActor
+    private func hideKeyboard() {
+        focusedField = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
     }
+}
+
+// Cho phép vuốt mép trái để “Trở về” khi dùng NavigationStack + nút back tuỳ biến
+private struct EnableSwipeBack: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController {
+        let vc = UIViewController()
+        DispatchQueue.main.async {
+            vc.navigationController?.interactivePopGestureRecognizer?.isEnabled = true
+            vc.navigationController?.interactivePopGestureRecognizer?.delegate = nil
+        }
+        return vc
+    }
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
