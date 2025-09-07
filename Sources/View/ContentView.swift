@@ -17,7 +17,7 @@ struct ContentView: View {
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
 
-    // Chỉ liệt kê đúng các đuôi cần nhập (fix iOS 16 disabled nút Mở)
+    // Loại file cho import (tránh .item/.data để iOS 16 không khóa nút Mở)
     private let importerTypes: [UTType] = {
         var types: [UTType] = []
         if let json = UTType(filenameExtension: "json") { types.append(json) }
@@ -35,8 +35,9 @@ struct ContentView: View {
                 .listSectionSpacingCompat(4)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { topToolbar }
+                // ✅ Tìm kiếm luôn cố định khi lướt
                 .searchable(text: $searchText,
-                            placement: .navigationBarDrawer(displayMode: .automatic),
+                            placement: .navigationBarDrawer(displayMode: .always),
                             prompt: "Search")
                 .onAppear { refreshSSID() }
                 .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
@@ -66,7 +67,7 @@ struct ContentView: View {
         ) { result in
             handleImport(result)
         }
-        // Thanh hành động khi đang chọn nhiều — chỉ còn 1 nút XÓA màu đỏ
+        // Thanh hành động khi đang chọn nhiều — chỉ có nút XÓA màu đỏ
         .safeAreaInset(edge: .bottom) {
             if selecting {
                 Button(role: .destructive) {
@@ -170,14 +171,13 @@ struct ContentView: View {
                 Section {
                     ForEach(items) { network in
                         if selecting {
-                            // Chế độ chọn nhiều: không điều hướng
                             Button {
                                 toggleSelect(network.id)
                             } label: {
                                 row(for: network, selecting: true, selected: selectedIDs.contains(network.id))
                             }
                             .buttonStyle(.plain)
-                            .swipeActions { } // tắt swipe khi chọn nhiều
+                            .swipeActions { }
                         } else {
                             NavigationLink {
                                 WiFiDetailView(item: network).environmentObject(store)
@@ -258,7 +258,6 @@ struct ContentView: View {
         // Phải
         ToolbarItemGroup(placement: .topBarTrailing) {
             if selecting {
-                // ✅ Hủy ở góc phải
                 Button("Hủy") {
                     selecting = false
                     selectedIDs.removeAll()
@@ -268,14 +267,12 @@ struct ContentView: View {
                     Image(systemName: "plus")
                 }
                 Menu {
-                    // “Chọn Wi-Fi”
                     Button {
                         selecting = true
                         selectedIDs.removeAll()
                     } label: {
                         Label("Chọn Wi-Fi", systemImage: "checkmark.circle")
                     }
-
                     Button { prepareExport(); showingExporter = true } label: {
                         Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
                     }
@@ -289,7 +286,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Helpers (logic & small views)
+    // MARK: - Helpers
 
     private func pathToForm(with item: WiFiNetwork) {
         showingAdd = true
@@ -334,16 +331,14 @@ struct ContentView: View {
         .padding(.vertical, 16)
     }
 
-    // Row: hiển thị bình thường hoặc kèm checkbox khi đang chọn
     private func row(for item: WiFiNetwork, selecting: Bool, selected: Bool) -> some View {
         HStack(spacing: 12) {
             if selecting {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(selected ? Color.blue : Color.secondary) // iOS 16-safe
+                    .foregroundColor(selected ? Color.blue : Color.secondary)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.ssid)
-                    .font(.headline)
+                Text(item.ssid).font(.headline)
                 HStack(spacing: 8) {
                     SecureDots(text: item.password ?? "")
                 }
@@ -358,11 +353,7 @@ struct ContentView: View {
     }
 
     private func toggleSelect(_ id: UUID) {
-        if selectedIDs.contains(id) {
-            selectedIDs.remove(id)
-        } else {
-            selectedIDs.insert(id)
-        }
+        if selectedIDs.contains(id) { selectedIDs.remove(id) } else { selectedIDs.insert(id) }
     }
 
     private func deleteSelected() {
@@ -399,7 +390,6 @@ struct ContentView: View {
                 let rawData = try Data(contentsOf: url)
                 let ext = url.pathExtension.lowercased()
 
-                // Nếu .js / .txt / .mjs / .cjs: bóc ra JSON thuần
                 let dataForDecode: Data
                 if ["js", "txt", "mjs", "cjs"].contains(ext) {
                     guard let text = String(data: rawData, encoding: .utf8) else {
@@ -414,10 +404,8 @@ struct ContentView: View {
                     dataForDecode = rawData
                 }
 
-                // Thử decode [WiFiNetwork] hoặc { "items": [...] }
                 let decoder = JSONDecoder()
                 var imported: [WiFiNetwork]?
-
                 if let arr = try? decoder.decode([WiFiNetwork].self, from: dataForDecode) {
                     imported = arr
                 } else {
@@ -426,12 +414,8 @@ struct ContentView: View {
                         imported = wrap.items
                     }
                 }
+                guard let list = imported, !list.isEmpty else { throw ImportError.empty }
 
-                guard let list = imported, !list.isEmpty else {
-                    throw ImportError.empty
-                }
-
-                // Sanitize mật khẩu: bỏ khoảng trắng; nếu trống -> security = .none
                 let sanitized: [WiFiNetwork] = list.map { n in
                     var x = n
                     if let p = x.password {
@@ -441,8 +425,6 @@ struct ContentView: View {
                     }
                     return x
                 }
-
-                // Merge & sort
                 merge(sanitized)
                 store.sortInPlace()
 
@@ -455,24 +437,18 @@ struct ContentView: View {
         }
     }
 
-    // Bóc JSON từ text có JS wrapper (const data = [...]; export default [...])
     private func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let first = trimmed.first, first == "[" || first == "{" {
-            return trimmed
-        }
-        if let s = trimmed.firstIndex(of: "["),
-           let e = trimmed.lastIndex(of: "]"), s < e {
+        if let first = trimmed.first, first == "[" || first == "{" { return trimmed }
+        if let s = trimmed.firstIndex(of: "["), let e = trimmed.lastIndex(of: "]"), s < e {
             return String(trimmed[s...e])
         }
-        if let s = trimmed.firstIndex(of: "{"),
-           let e = trimmed.lastIndex(of: "}"), s < e {
+        if let s = trimmed.firstIndex(of: "{"), let e = trimmed.lastIndex(of: "}"), s < e {
             return String(trimmed[s...e])
         }
         return trimmed
     }
 
-    // Gộp: ưu tiên trùng id; nếu không, ghép theo ssid (normalize)
     private func merge(_ incoming: [WiFiNetwork]) {
         var indexByID: [UUID: Int] = [:]
         var indexBySSID: [String: Int] = [:]
@@ -495,10 +471,7 @@ struct ContentView: View {
         s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    private enum ImportError: Error {
-        case invalidEncoding
-        case empty
-    }
+    private enum ImportError: Error { case invalidEncoding, empty }
 
     private var isConnected: Bool {
         if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -506,36 +479,25 @@ struct ContentView: View {
         return false
     }
 
-    // Chấm trạng thái cho "MẠNG HIỆN TẠI"
     private var statusDot: some View {
-        Circle()
-            .fill(isConnected ? Color.green : Color.red)
-            .frame(width: 8, height: 8)
+        Circle().fill(isConnected ? Color.green : Color.red).frame(width: 8, height: 8)
     }
-
-    // Chấm trạng thái riêng cho "ĐÃ LƯU"
     private var savedStatusDot: some View {
-        Circle()
-            .fill(hasSavedNetworks ? Color.green : Color.orange)
-            .frame(width: 8, height: 8)
+        Circle().fill(hasSavedNetworks ? Color.green : Color.orange).frame(width: 8, height: 8)
     }
-
     private var hasSavedNetworks: Bool { !store.items.isEmpty }
 }
 
-// MARK: - Small helpers used in ContentView
+// MARK: - Small helpers
 
 private struct SecureDots: View {
     let text: String
     var body: some View {
         if text.isEmpty {
-            Text("Không bảo mật")
-                .foregroundStyle(.secondary)
-                .font(.footnote)
+            Text("Không bảo mật").foregroundStyle(.secondary).font(.footnote)
         } else {
             Text(String(repeating: "•", count: max(6, text.count)))
-                .foregroundStyle(.secondary)
-                .font(.title3)
+                .foregroundStyle(.secondary).font(.title3)
         }
     }
 }
@@ -545,9 +507,7 @@ private extension String {
         guard let first = trimmingCharacters(in: .whitespacesAndNewlines).first else { return "#" }
         let s = String(first).folding(options: .diacriticInsensitive, locale: .current)
         let u = s.uppercased()
-        if u.range(of: "[A-Z0-9]", options: .regularExpression) != nil {
-            return u
-        }
+        if u.range(of: "[A-Z0-9]", options: .regularExpression) != nil { return u }
         return "#"
     }
 }
@@ -557,10 +517,6 @@ private extension String {
 extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
-        if #available(iOS 17.0, *) {
-            self.listSectionSpacing(spacing)
-        } else {
-            self
-        }
+        if #available(iOS 17.0, *) { self.listSectionSpacing(spacing) } else { self }
     }
 }
