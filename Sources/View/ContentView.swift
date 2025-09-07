@@ -13,6 +13,14 @@ struct ContentView: View {
     @State private var confirmDelete: UUID?
     private let currentWiFi = CurrentWiFi()
 
+    // ✅ Cho phép chọn .json, .js, .mjs, .cjs, .txt
+    private let importerTypes: [UTType] = {
+        var types: [UTType] = [.json, .javascript, .text, .plainText]
+        if let mjs = UTType(filenameExtension: "mjs") { types.append(mjs) }
+        if let cjs = UTType(filenameExtension: "cjs") { types.append(cjs) }
+        return types
+    }()
+
     var body: some View {
         NavigationStack {
             listContent
@@ -43,10 +51,10 @@ struct ContentView: View {
             defaultFilename: "wifi_networks.json",
             onCompletion: { _ in }
         )
-        // Import (.json / .js / .txt) — dùng overload trả Result<[URL], Error>
+        // Import (.json / .js / .mjs / .cjs / .txt)
         .fileImporter(
             isPresented: $showingImporter,
-            allowedContentTypes: [UTType.json, UTType.text, UTType.plainText],
+            allowedContentTypes: importerTypes,
             allowsMultipleSelection: false
         ) { result in
             handleImport(result)
@@ -65,7 +73,6 @@ struct ContentView: View {
 
     private var currentNetworkSection: some View {
         Section {
-            // CARD "Mạng hiện tại"
             HStack {
                 VStack(alignment: .leading, spacing: 8) {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -85,7 +92,7 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
-                        pathToForm(with: WiFiNetwork(ssid: ssid, password: nil))
+                        pathToForm(with: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
                     } else {
                         pathToForm(with: newItem())
                     }
@@ -132,7 +139,6 @@ struct ContentView: View {
                 .padding(.top, 4)
             }
         } else {
-            // Mỗi chữ cái là Section top-level
             ForEach(Array(groupedKeys.enumerated()), id: \.element) { index, key in
                 let items = filteredItemsByKey[key] ?? []
                 Section {
@@ -179,7 +185,6 @@ struct ContentView: View {
     // Toolbar
     @ToolbarContentBuilder
     private var topToolbar: some ToolbarContent {
-        // Trái
         ToolbarItem(placement: .topBarLeading) {
             Menu {
                 Picker("Giao diện", selection: $theme.mode) {
@@ -194,7 +199,6 @@ struct ContentView: View {
             }
         }
 
-        // Giữa
         ToolbarItem(placement: .principal) {
             Text("Wi-Fi")
                 .font(.system(size: 18, weight: .bold))
@@ -202,7 +206,6 @@ struct ContentView: View {
                 .minimumScaleFactor(0.8)
         }
 
-        // Phải
         ToolbarItemGroup(placement: .topBarTrailing) {
             Button { pathToForm(with: newItem()) } label: {
                 Image(systemName: "plus")
@@ -282,7 +285,7 @@ struct ContentView: View {
     }
 
     private func newItem() -> WiFiNetwork {
-        WiFiNetwork(ssid: "", password: nil)
+        WiFiNetwork(ssid: "", password: nil, security: .wpa2wpa3)
     }
 
     private func refreshSSID() {
@@ -295,7 +298,7 @@ struct ContentView: View {
         exportDoc = WiFiJSONDocument(networks: store.items)
     }
 
-    // MARK: - Import (.json / .js / .txt)
+    // MARK: - Import (.json / .js / .mjs / .cjs / .txt)
 
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
@@ -310,7 +313,7 @@ struct ContentView: View {
 
                 // Nếu .js / .txt: lột JS wrapper để lấy JSON thuần
                 let dataForDecode: Data
-                if ["js", "txt"].contains(ext) {
+                if ["js", "txt", "mjs", "cjs"].contains(ext) {
                     guard let text = String(data: rawData, encoding: .utf8) else {
                         throw ImportError.invalidEncoding
                     }
@@ -340,7 +343,6 @@ struct ContentView: View {
                     throw ImportError.empty
                 }
 
-                // Merge & sort
                 merge(list)
                 store.sortInPlace()
 
@@ -353,7 +355,6 @@ struct ContentView: View {
         }
     }
 
-    // Bóc JSON từ text có JS wrapper (const data = [...]; / export default [...])
     private func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let first = trimmed.first, first == "[" || first == "{" {
@@ -367,10 +368,9 @@ struct ContentView: View {
            let e = trimmed.lastIndex(of: "}"), s < e {
             return String(trimmed[s...e])
         }
-        return trimmed // để lỗi decode báo ra
+        return trimmed
     }
 
-    // Gộp: ưu tiên trùng id, nếu không có id trùng thì ghép theo ssid (normalize)
     private func merge(_ incoming: [WiFiNetwork]) {
         var indexByID: [UUID: Int] = [:]
         var indexBySSID: [String: Int] = [:]
@@ -394,7 +394,6 @@ struct ContentView: View {
         s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    // Hỗ trợ báo lỗi import
     private enum ImportError: Error {
         case invalidEncoding
         case empty
@@ -406,14 +405,12 @@ struct ContentView: View {
         return false
     }
 
-    // Chấm trạng thái cho "MẠNG HIỆN TẠI" (xanh/đỏ)
     private var statusDot: some View {
         Circle()
             .fill(isConnected ? Color.green : Color.red)
             .frame(width: 8, height: 8)
     }
 
-    // Chấm trạng thái riêng cho "ĐÃ LƯU"
     private var savedStatusDot: some View {
         Circle()
             .fill(hasSavedNetworks ? Color.green : Color.orange)
@@ -458,7 +455,7 @@ extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
-            self.listSectionSpacing(spacing)   // hoặc .compact
+            self.listSectionSpacing(spacing)
         } else {
             self
         }
