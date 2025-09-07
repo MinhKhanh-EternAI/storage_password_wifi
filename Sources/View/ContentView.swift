@@ -14,8 +14,13 @@ struct ContentView: View {
     private let currentWiFi = CurrentWiFi()
 
     // ✅ Cho phép chọn .json, .js, .mjs, .cjs, .txt
+    // Tránh dùng UTType.javascript (không có trên SDK của bạn), tạo từ phần mở rộng
     private let importerTypes: [UTType] = {
-        var types: [UTType] = [.json, .javascript, .text, .plainText]
+        var types: [UTType] = [.json, .text]
+        if #available(iOS 16.0, *) {
+            types.append(.plainText) // có thể không bắt buộc, nhưng thêm nếu SDK hỗ trợ
+        }
+        if let js = UTType(filenameExtension: "js")  { types.append(js) }
         if let mjs = UTType(filenameExtension: "mjs") { types.append(mjs) }
         if let cjs = UTType(filenameExtension: "cjs") { types.append(cjs) }
         return types
@@ -92,6 +97,7 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
+                        // Mặc định bảo mật WPA2/WPA3 khi thêm từ mạng hiện tại
                         pathToForm(with: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
                     } else {
                         pathToForm(with: newItem())
@@ -311,7 +317,7 @@ struct ContentView: View {
                 let rawData = try Data(contentsOf: url)
                 let ext = url.pathExtension.lowercased()
 
-                // Nếu .js / .txt: lột JS wrapper để lấy JSON thuần
+                // Nếu .js / .txt / .mjs / .cjs: lột JS wrapper để lấy JSON thuần
                 let dataForDecode: Data
                 if ["js", "txt", "mjs", "cjs"].contains(ext) {
                     guard let text = String(data: rawData, encoding: .utf8) else {
@@ -355,6 +361,7 @@ struct ContentView: View {
         }
     }
 
+    // Bóc JSON từ text có JS wrapper (const data = [...]; / export default [...])
     private func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let first = trimmed.first, first == "[" || first == "{" {
