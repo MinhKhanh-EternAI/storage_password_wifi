@@ -1,8 +1,8 @@
-# 📶 WiFiOffline
+# 📶 WiFi Database (Vibe Code)
 
-> *"Vì đôi khi bạn cần lưu mật khẩu WiFi của hàng xóm... một cách lịch sự"* 😏
 
-Ứng dụng iOS (SwiftUI) cho phép **lưu trữ và quản lý mật khẩu Wi-Fi ngoại tuyến** - dự án cá nhân được code với đam mê và một chút tinh nghịch.
+
+Ứng dụng iOS (SwiftUI) cho phép **lưu trữ và quản lý mật khẩu Wi-Fi ngoại tuyến** - dự án phục vụ mục đích cá nhân.
 
 ## 🎨 Giao diện
 
@@ -24,23 +24,22 @@
 ## ✨ Tính năng
 
 ### 🔥 Core Features
-- **Hiển thị mạng Wi-Fi hiện tại** - Vì đôi khi bạn quên mình đang kết nối mạng gì
-- **Thêm Wi-Fi thủ công** - Hoặc "mượn" từ mạng hiện tại (shh... 🤫)
-- **Danh sách Wi-Fi thông minh** - Tự động sắp xếp theo tên, vì ai cũng thích thứ tự
-- **Tìm kiếm nhanh** - Tìm WiFi trong tích tắc
-- **Xuất/Nhập JSON** - Backup dữ liệu như một pro
+- **Hiển thị mạng Wi-Fi hiện tại**
+- **Thêm Wi-Fi thủ công**
+- **Danh sách Wi-Fi thông minh**
+- **Tìm kiếm nhanh**
+- **Xuất/Nhập JSON**
 
 ### 🎯 Chi tiết WiFi
-- **Hiện mật khẩu** - Copy nhanh, paste nhanh, kết nối nhanh
-- **QR code chia sẻ** - Chia sẻ WiFi một cách cool ngầu
-- **Chỉnh sửa bảo mật** - Tùy chỉnh theo ý muốn
-- **Xoá có xác nhận** - Tránh xoá nhầm (đã từng xoá nhầm rồi... 😅)
+- **Hiện mật khẩu**
+- **QR code chia sẻ**
+- **Chỉnh sửa bảo mật**
+- **Xoá có xác nhận**
 
 ### 🎨 UX/UI
-- **Swipe to delete** - Xoá nhanh từ màn hình chính
-- **Dark/Light mode** - Icon tự đổi ☀️🌙 theo tâm trạng
-- **Smooth animations** - Mượt mà như bơ
-
+- **Swipe to delete**
+- **Dark/Light mode**
+- **Smooth animations**
 ## 🛠 Tech Stack
 
 ```swift
@@ -79,13 +78,6 @@ tuist generate
 # Mở Xcode và code thôi!
 open WiFiOffline.xcworkspace
 ```
-
-## 💡 Tại sao tạo app này?
-
-1. **Thực tế**: Đi cafe, nhà bạn, khách sạn... WiFi password dài quá, ghi note thì mất
-2. **Học hỏi**: SwiftUI, Core Data, Network framework
-3. **Tiện ích**: App cá nhân, không cần App Store, không cần review
-4. **Fun**: Code cho vui, thử nghiệm UI/UX mới
 
 ## 🎯 Roadmap (nếu có thời gian)
 
