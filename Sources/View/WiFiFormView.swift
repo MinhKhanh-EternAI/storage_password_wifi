@@ -34,7 +34,7 @@ struct WiFiFormView: View {
                 }
                 .padding(.vertical, 2)
 
-                // MẬT KHẨU
+                // MẬT KHẨU (không tự đổi security tại đây)
                 HStack(spacing: 12) {
                     Text("Mật khẩu")
                         .foregroundColor(.primary)
@@ -42,7 +42,10 @@ struct WiFiFormView: View {
 
                     SecureField(
                         "",
-                        text: passwordBinding,
+                        text: Binding<String>(
+                            get: { item.password ?? "" },
+                            set: { item.password = $0.isEmpty ? nil : $0 }
+                        ),
                         prompt: Text("Mật khẩu")
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -57,7 +60,7 @@ struct WiFiFormView: View {
                     .foregroundColor(.secondary)
             }
 
-            // BẢO MẬT
+            // BẢO MẬT (người dùng tự chọn; chỉ bị ép .none khi Lưu nếu không có mật khẩu)
             Section {
                 NavigationLink {
                     SecurityPickerView(
@@ -68,7 +71,7 @@ struct WiFiFormView: View {
                     HStack {
                         Text("Bảo mật")
                         Spacer()
-                        Text(displaySecurityText)   // hiển thị "Không có" khi không có mật khẩu
+                        Text(item.security.rawValue)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -91,7 +94,7 @@ struct WiFiFormView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Lưu") { save() }
                     .fontWeight(.bold)
-                    .disabled(!isSSIDValid) // chặn lưu khi chưa nhập tên
+                    .disabled(!isSSIDValid)
             }
         }
         .alert("Vui lòng nhập tên Wi-Fi", isPresented: $showNameAlert) {
@@ -105,36 +108,18 @@ struct WiFiFormView: View {
         !item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Khi không có mật khẩu, hiển thị "Không có" cho phần Bảo mật
-    private var displaySecurityText: String {
-        let pwd = (item.password ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return pwd.isEmpty ? SecurityType.none.rawValue : item.security.rawValue
-    }
-
-    private var passwordBinding: Binding<String> {
-        Binding<String>(
-            get: { item.password ?? "" },
-            set: { newValue in
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                item.password = trimmed.isEmpty ? nil : newValue
-                // Nếu không có mật khẩu -> tự động chuyển bảo mật về "Không có"
-                if trimmed.isEmpty {
-                    item.security = .none
-                }
-                // Nếu có mật khẩu, giữ nguyên lựa chọn bảo mật hiện tại của người dùng
-            }
-        )
-    }
-
     private func save() {
-        // Bắt buộc nhập tên
+        // Phải có tên
         guard isSSIDValid else {
             showNameAlert = true
             return
         }
-        // Nếu không có mật khẩu -> set bảo mật = Không có (đảm bảo lần cuối trước khi lưu)
+
+        // ✅ Chỉ tại thời điểm bấm Lưu: nếu mật khẩu trống -> ép security = .none
         let pwdEmpty = (item.password ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if pwdEmpty { item.security = .none }
+        if pwdEmpty {
+            item.security = .none
+        }
 
         switch mode {
         case .create:

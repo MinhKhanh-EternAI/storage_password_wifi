@@ -13,14 +13,10 @@ struct ContentView: View {
     @State private var confirmDelete: UUID?
     private let currentWiFi = CurrentWiFi()
 
-    // ✅ Cho phép chọn .json, .js, .mjs, .cjs, .txt
-    // Tránh dùng UTType.javascript (không có trên SDK của bạn), tạo từ phần mở rộng
+    // ✅ Cho phép chọn .json, .js, .mjs, .cjs, .txt và cả file bất kỳ
     private let importerTypes: [UTType] = {
-        var types: [UTType] = [.json, .text]
-        if #available(iOS 16.0, *) {
-            types.append(.plainText) // có thể không bắt buộc, nhưng thêm nếu SDK hỗ trợ
-        }
-        if let js = UTType(filenameExtension: "js")  { types.append(js) }
+        var types: [UTType] = [.json, .text, .item, .data]
+        if let js  = UTType(filenameExtension: "js")  { types.append(js) }
         if let mjs = UTType(filenameExtension: "mjs") { types.append(mjs) }
         if let cjs = UTType(filenameExtension: "cjs") { types.append(cjs) }
         return types
@@ -56,7 +52,7 @@ struct ContentView: View {
             defaultFilename: "wifi_networks.json",
             onCompletion: { _ in }
         )
-        // Import (.json / .js / .mjs / .cjs / .txt)
+        // Import (.json / .js / .mjs / .cjs / .txt / bất kỳ file)
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: importerTypes,
@@ -78,18 +74,19 @@ struct ContentView: View {
 
     private var currentNetworkSection: some View {
         Section {
+            // CARD "Mạng hiện tại"
             HStack {
                 VStack(alignment: .leading, spacing: 8) {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
                         Text(ssid).font(.headline)
                         Text("Đang kết nối")
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                             .font(.footnote)
                     } else {
                         Text("Không khả dụng").font(.headline)
                         Text("Vui lòng kết nối mạng")
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                             .font(.footnote)
                     }
                 }
@@ -114,7 +111,7 @@ struct ContentView: View {
                 Text("MẠNG HIỆN TẠI")
                     .textCase(.uppercase)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 Spacer()
                 Button {
                     refreshSSID()
@@ -139,12 +136,13 @@ struct ContentView: View {
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                     Spacer()
                 }
                 .padding(.top, 4)
             }
         } else {
+            // Mỗi chữ cái là Section top-level
             ForEach(Array(groupedKeys.enumerated()), id: \.element) { index, key in
                 let items = filteredItemsByKey[key] ?? []
                 Section {
@@ -166,7 +164,7 @@ struct ContentView: View {
                                 Text("ĐÃ LƯU")
                                     .textCase(.uppercase)
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundColor(.secondary)
                             }
                             .padding(.top, 4)
                         }
@@ -181,7 +179,7 @@ struct ContentView: View {
         HStack {
             Text("ĐÃ LƯU")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .textCase(.uppercase)
             Spacer()
         }
@@ -191,6 +189,7 @@ struct ContentView: View {
     // Toolbar
     @ToolbarContentBuilder
     private var topToolbar: some ToolbarContent {
+        // Trái
         ToolbarItem(placement: .topBarLeading) {
             Menu {
                 Picker("Giao diện", selection: $theme.mode) {
@@ -205,6 +204,7 @@ struct ContentView: View {
             }
         }
 
+        // Giữa
         ToolbarItem(placement: .principal) {
             Text("Wi-Fi")
                 .font(.system(size: 18, weight: .bold))
@@ -212,6 +212,7 @@ struct ContentView: View {
                 .minimumScaleFactor(0.8)
         }
 
+        // Phải
         ToolbarItemGroup(placement: .topBarTrailing) {
             Button { pathToForm(with: newItem()) } label: {
                 Image(systemName: "plus")
@@ -268,7 +269,7 @@ struct ContentView: View {
         HStack(spacing: 12) {
             Image(systemName: "wifi.slash")
             Text("Chưa có mạng nào được lưu")
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 16)
@@ -285,12 +286,13 @@ struct ContentView: View {
             }
             Spacer()
             Image(systemName: "qrcode")
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
         }
         .contentShape(Rectangle())
     }
 
     private func newItem() -> WiFiNetwork {
+        // Mặc định WPA2/WPA3 khi thêm mới
         WiFiNetwork(ssid: "", password: nil, security: .wpa2wpa3)
     }
 
@@ -304,7 +306,7 @@ struct ContentView: View {
         exportDoc = WiFiJSONDocument(networks: store.items)
     }
 
-    // MARK: - Import (.json / .js / .mjs / .cjs / .txt)
+    // MARK: - Import (.json / .js / .mjs / .cjs / .txt / any)
 
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
@@ -349,6 +351,7 @@ struct ContentView: View {
                     throw ImportError.empty
                 }
 
+                // Merge & sort
                 merge(list)
                 store.sortInPlace()
 
@@ -378,6 +381,7 @@ struct ContentView: View {
         return trimmed
     }
 
+    // Gộp: ưu tiên trùng id, nếu không có id trùng thì ghép theo ssid (normalize)
     private func merge(_ incoming: [WiFiNetwork]) {
         var indexByID: [UUID: Int] = [:]
         var indexBySSID: [String: Int] = [:]
@@ -401,6 +405,7 @@ struct ContentView: View {
         s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    // Hỗ trợ báo lỗi import
     private enum ImportError: Error {
         case invalidEncoding
         case empty
@@ -412,12 +417,14 @@ struct ContentView: View {
         return false
     }
 
+    // Chấm trạng thái cho "MẠNG HIỆN TẠI" (xanh/đỏ)
     private var statusDot: some View {
         Circle()
             .fill(isConnected ? Color.green : Color.red)
             .frame(width: 8, height: 8)
     }
 
+    // Chấm trạng thái riêng cho "ĐÃ LƯU"
     private var savedStatusDot: some View {
         Circle()
             .fill(hasSavedNetworks ? Color.green : Color.orange)
@@ -434,11 +441,11 @@ private struct SecureDots: View {
     var body: some View {
         if text.isEmpty {
             Text("Không bảo mật")
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .font(.footnote)
         } else {
             Text(String(repeating: "•", count: max(6, text.count)))
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .font(.title3)
         }
     }
@@ -462,7 +469,7 @@ extension View {
     @ViewBuilder
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
-            self.listSectionSpacing(spacing)
+            self.listSectionSpacing(spacing)   // hoặc .compact
         } else {
             self
         }
