@@ -338,7 +338,7 @@ struct ContentView: View {
         HStack(spacing: 12) {
             if selecting {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? .blue : .tertiary)
+                    .foregroundStyle(selected ? Color.blue : Color.secondary)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.ssid)
