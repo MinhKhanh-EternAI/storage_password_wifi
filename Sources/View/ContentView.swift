@@ -16,7 +16,7 @@ struct ContentView: View {
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
 
-    // ✓ Nới lỏng loại tệp: thêm public.data để tránh “chọn được nhưng không mở”
+    // Loại file cho import – thêm .data làm fallback để iOS cho mở file
     private let importerTypes: [UTType] = {
         var types: [UTType] = []
         if let json = UTType(filenameExtension: "json") { types.append(json) }
@@ -24,7 +24,7 @@ struct ContentView: View {
         if let mjs  = UTType(filenameExtension: "mjs")  { types.append(mjs) }
         if let cjs  = UTType(filenameExtension: "cjs")  { types.append(cjs) }
         if let txt  = UTType(filenameExtension: "txt")  { types.append(txt) }
-        if let data = UTType(importedAs: "public.data") { types.append(data) } // fallback
+        types.append(.data) // ✅ không cần if-let
         return types
     }()
 
