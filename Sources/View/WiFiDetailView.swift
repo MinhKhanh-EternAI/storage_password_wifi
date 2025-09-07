@@ -8,28 +8,43 @@ struct WiFiDetailView: View {
     @State private var showDeleteAlert = false
     @State private var copied = false
 
+    // soạn thảo mật khẩu (chặn space khi gõ)
+    @State private var pwDraft: String = ""
+
     var body: some View {
         List {
             infoSection
             securitySection
             qrSection
         }
+        .onAppear { pwDraft = item.password ?? "" }          // init draft
         .navigationTitle(item.ssid.isEmpty ? "Wi-Fi" : item.ssid)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { topMenu }
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            // nút "Trở về"
+            ToolbarItem(placement: .topBarLeading) {
+                Button { dismiss() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                        Text("Trở về")
+                    }
+                }
+            }
+            topMenu
+        }
         .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
             Button("Hủy", role: .cancel) {}
             Button("Xóa", role: .destructive) {
-                store.delete(item.id)
-                dismiss()
+                store.delete(item.id); dismiss()
             }
         }
         .toast(isPresented: $copied, text: "Đã sao chép mật khẩu")
-        // Nút Lưu cố định dưới – nền xanh chữ trắng
+        // nút Lưu cố định dưới – nền xanh chữ trắng
         .safeAreaInset(edge: .bottom) {
             Button {
-                let pwdEmpty = (item.password ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                if pwdEmpty { item.security = .none }
+                // nếu không có mật khẩu -> tự set Không có
+                if (item.password ?? "").isEmpty { item.security = .none }
                 store.upsert(item)
             } label: {
                 Text("Lưu thông tin")
@@ -54,45 +69,49 @@ struct WiFiDetailView: View {
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .leading)
 
-                TextField(
-                    "",
-                    text: $item.ssid,
-                    prompt: Text("Tên mạng")
-                )
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 2)
+                TextField("", text: $item.ssid, prompt: Text("Tên mạng"))
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 2)
             }
             .padding(.vertical, 2)
 
-            // MẬT KHẨU (hiện luôn, 1 dòng – cắt giữa; cấm khoảng trắng; long-press để copy)
+            // MẬT KHẨU – chỉnh sửa trực tiếp, CHẶN space khi gõ
             HStack(spacing: 12) {
                 Text("Mật khẩu")
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .leading)
 
-                TextField(
-                    "",
-                    text: passwordBindingNoSpace,
-                    prompt: Text("Mật khẩu")
-                )
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .textContentType(.password)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 2)
-                .onLongPressGesture {
-                    let pwd = (item.password ?? "")
-                    if !pwd.isEmpty {
+                TextField("", text: $pwDraft, prompt: Text("Mật khẩu"))
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .textContentType(.password)
+                    .keyboardType(.asciiCapable)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 2)
+                    // CHẶN space ngay khi gõ
+                    .onChange(of: pwDraft) { newVal in
+                        let cleaned = newVal.filter { !$0.isWhitespace }
+                        if cleaned != newVal { pwDraft = cleaned }
+                        item.password = cleaned.isEmpty ? nil : cleaned
+                    }
+            }
+            .padding(.vertical, 2)
+            // Ấn đè -> menu hệ thống "Sao chép"
+            .contextMenu {
+                let pwd = (item.password ?? "")
+                if !pwd.isEmpty {
+                    Button {
                         UIPasteboard.general.string = pwd
                         copied = true
+                    } label: {
+                        Label("Sao chép", systemImage: "doc.on.doc")
                     }
                 }
             }
-            .padding(.vertical, 2)
 
         } header: {
             Text("THÔNG TIN")
@@ -105,10 +124,7 @@ struct WiFiDetailView: View {
     private var securitySection: some View {
         Section {
             NavigationLink {
-                SecurityPickerView(
-                    security: $item.security,
-                    privacy: $item.macPrivacy
-                )
+                SecurityPickerView(security: $item.security, privacy: $item.macPrivacy)
             } label: {
                 HStack {
                     Text("Bảo mật")
@@ -127,7 +143,7 @@ struct WiFiDetailView: View {
 
     private var qrSection: some View {
         Section {
-            // 1 khung duy nhất, QR lớn vừa phải
+            // kích thước như trước – KHÔNG viền trong
             let maxW = UIScreen.main.bounds.width
             let size = min(maxW - 56, 320)
 
@@ -135,10 +151,6 @@ struct WiFiDetailView: View {
                 QRCodeView(text: item.wifiQRString)
                     .frame(width: size, height: size)
                     .padding(14)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-                    )
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
@@ -151,7 +163,7 @@ struct WiFiDetailView: View {
         }
     }
 
-    // MARK: - Toolbar
+    // MARK: - Toolbar menu
 
     private var topMenu: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
@@ -171,18 +183,5 @@ struct WiFiDetailView: View {
                 Image(systemName: "ellipsis.circle")
             }
         }
-    }
-
-    // MARK: - Bindings
-
-    // Cấm khoảng trắng trong mật khẩu
-    private var passwordBindingNoSpace: Binding<String> {
-        Binding(
-            get: { item.password ?? "" },
-            set: { newVal in
-                let cleaned = newVal.filter { !$0.isWhitespace }
-                item.password = cleaned.isEmpty ? nil : cleaned
-            }
-        )
     }
 }

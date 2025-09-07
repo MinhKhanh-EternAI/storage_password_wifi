@@ -13,16 +13,18 @@ struct ContentView: View {
     @State private var confirmDelete: UUID?
     private let currentWiFi = CurrentWiFi()
 
-    // ✅ Chọn nhiều
+    // Chế độ chọn nhiều
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
 
-    // Cho phép chọn .json/.txt và cả file bất kỳ + js/mjs/cjs
+    // Chỉ liệt kê đúng các đuôi cần nhập (fix iOS 16 disabled nút Mở)
     private let importerTypes: [UTType] = {
-        var types: [UTType] = [.json, .text, .item, .data]
-        if let js  = UTType(filenameExtension: "js")  { types.append(js) }
-        if let mjs = UTType(filenameExtension: "mjs") { types.append(mjs) }
-        if let cjs = UTType(filenameExtension: "cjs") { types.append(cjs) }
+        var types: [UTType] = []
+        if let json = UTType(filenameExtension: "json") { types.append(json) }
+        if let js   = UTType(filenameExtension: "js")   { types.append(js) }
+        if let mjs  = UTType(filenameExtension: "mjs")  { types.append(mjs) }
+        if let cjs  = UTType(filenameExtension: "cjs")  { types.append(cjs) }
+        if let txt  = UTType(filenameExtension: "txt")  { types.append(txt) }
         return types
     }()
 
@@ -56,7 +58,7 @@ struct ContentView: View {
             defaultFilename: "wifi_networks.json",
             onCompletion: { _ in }
         )
-        // Import
+        // Import (.json / .js / .mjs / .cjs / .txt)
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: importerTypes,
@@ -64,24 +66,18 @@ struct ContentView: View {
         ) { result in
             handleImport(result)
         }
-        // ✅ Thanh hành động khi đang chọn nhiều
+        // Thanh hành động khi đang chọn nhiều — chỉ còn 1 nút XÓA màu đỏ
         .safeAreaInset(edge: .bottom) {
             if selecting {
-                HStack(spacing: 12) {
-                    Button(role: .destructive) {
-                        deleteSelected()
-                    } label: {
-                        Text(selectedIDs.isEmpty ? "Xóa" : "Xóa (\(selectedIDs.count))")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button("Hủy") {
-                        selecting = false
-                        selectedIDs.removeAll()
-                    }
-                    .buttonStyle(.bordered)
+                Button(role: .destructive) {
+                    deleteSelected()
+                } label: {
+                    Text(selectedIDs.isEmpty ? "Xóa" : "Xóa (\(selectedIDs.count))")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .controlSize(.large)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(.ultraThinMaterial)
@@ -101,7 +97,6 @@ struct ContentView: View {
 
     private var currentNetworkSection: some View {
         Section {
-            // CARD "Mạng hiện tại"
             HStack {
                 VStack(alignment: .leading, spacing: 8) {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -170,13 +165,12 @@ struct ContentView: View {
                 .padding(.top, 4)
             }
         } else {
-            // Mỗi chữ cái là Section top-level
             ForEach(Array(groupedKeys.enumerated()), id: \.element) { index, key in
                 let items = filteredItemsByKey[key] ?? []
                 Section {
                     ForEach(items) { network in
                         if selecting {
-                            // ✅ Chế độ chọn nhiều: không điều hướng
+                            // Chế độ chọn nhiều: không điều hướng
                             Button {
                                 toggleSelect(network.id)
                             } label: {
@@ -227,7 +221,8 @@ struct ContentView: View {
         .padding(.top, 4)
     }
 
-    // Toolbar
+    // MARK: - Toolbar
+
     @ToolbarContentBuilder
     private var topToolbar: some ToolbarContent {
         // Trái
@@ -262,12 +257,18 @@ struct ContentView: View {
 
         // Phải
         ToolbarItemGroup(placement: .topBarTrailing) {
-            if !selecting {
+            if selecting {
+                // ✅ Hủy ở góc phải
+                Button("Hủy") {
+                    selecting = false
+                    selectedIDs.removeAll()
+                }
+            } else {
                 Button { pathToForm(with: newItem()) } label: {
                     Image(systemName: "plus")
                 }
                 Menu {
-                    // ✅ Mục “Chọn Wi-Fi” như iOS
+                    // “Chọn Wi-Fi”
                     Button {
                         selecting = true
                         selectedIDs.removeAll()
@@ -338,7 +339,7 @@ struct ContentView: View {
         HStack(spacing: 12) {
             if selecting {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Color.blue : Color.secondary)
+                    .foregroundColor(selected ? Color.blue : Color.secondary) // iOS 16-safe
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.ssid)
@@ -398,6 +399,7 @@ struct ContentView: View {
                 let rawData = try Data(contentsOf: url)
                 let ext = url.pathExtension.lowercased()
 
+                // Nếu .js / .txt / .mjs / .cjs: bóc ra JSON thuần
                 let dataForDecode: Data
                 if ["js", "txt", "mjs", "cjs"].contains(ext) {
                     guard let text = String(data: rawData, encoding: .utf8) else {
@@ -412,6 +414,7 @@ struct ContentView: View {
                     dataForDecode = rawData
                 }
 
+                // Thử decode [WiFiNetwork] hoặc { "items": [...] }
                 let decoder = JSONDecoder()
                 var imported: [WiFiNetwork]?
 
@@ -428,7 +431,19 @@ struct ContentView: View {
                     throw ImportError.empty
                 }
 
-                merge(list)
+                // Sanitize mật khẩu: bỏ khoảng trắng; nếu trống -> security = .none
+                let sanitized: [WiFiNetwork] = list.map { n in
+                    var x = n
+                    if let p = x.password {
+                        let cleaned = p.filter { !$0.isWhitespace }
+                        x.password = cleaned.isEmpty ? nil : cleaned
+                        if x.password == nil { x.security = .none }
+                    }
+                    return x
+                }
+
+                // Merge & sort
+                merge(sanitized)
                 store.sortInPlace()
 
             } catch {
@@ -440,6 +455,7 @@ struct ContentView: View {
         }
     }
 
+    // Bóc JSON từ text có JS wrapper (const data = [...]; export default [...])
     private func extractJSON(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let first = trimmed.first, first == "[" || first == "{" {
@@ -456,6 +472,7 @@ struct ContentView: View {
         return trimmed
     }
 
+    // Gộp: ưu tiên trùng id; nếu không, ghép theo ssid (normalize)
     private func merge(_ incoming: [WiFiNetwork]) {
         var indexByID: [UUID: Int] = [:]
         var indexBySSID: [String: Int] = [:]
@@ -489,12 +506,14 @@ struct ContentView: View {
         return false
     }
 
+    // Chấm trạng thái cho "MẠNG HIỆN TẠI"
     private var statusDot: some View {
         Circle()
             .fill(isConnected ? Color.green : Color.red)
             .frame(width: 8, height: 8)
     }
 
+    // Chấm trạng thái riêng cho "ĐÃ LƯU"
     private var savedStatusDot: some View {
         Circle()
             .fill(hasSavedNetworks ? Color.green : Color.orange)

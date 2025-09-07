@@ -9,6 +9,8 @@ struct WiFiFormView: View {
 
     @State var item: WiFiNetwork
     @State private var showNameAlert = false
+    // soạn thảo mật khẩu (chặn space khi gõ)
+    @State private var pwDraft: String = ""
 
     var body: some View {
         Form {
@@ -22,31 +24,31 @@ struct WiFiFormView: View {
                         .foregroundColor(.primary)
                         .frame(width: labelWidth, alignment: .leading)
 
-                    TextField(
-                        "",
-                        text: $item.ssid,
-                        prompt: Text("Tên mạng")
-                    )
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 2)
+                    TextField("", text: $item.ssid, prompt: Text("Tên mạng"))
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 2)
                 }
                 .padding(.vertical, 2)
 
-                // MẬT KHẨU (cấm khoảng trắng)
+                // MẬT KHẨU — SecureField + chặn space khi gõ
                 HStack(spacing: 12) {
                     Text("Mật khẩu")
                         .foregroundColor(.primary)
                         .frame(width: labelWidth, alignment: .leading)
 
-                    SecureField(
-                        "",
-                        text: passwordBindingNoSpace,
-                        prompt: Text("Mật khẩu")
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 2)
+                    SecureField("", text: $pwDraft, prompt: Text("Mật khẩu"))
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .keyboardType(.asciiCapable)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 2)
+                        .onChange(of: pwDraft) { newVal in
+                            let cleaned = newVal.filter { !$0.isWhitespace }
+                            if cleaned != newVal { pwDraft = cleaned }
+                            item.password = cleaned.isEmpty ? nil : cleaned
+                        }
                 }
                 .padding(.vertical, 2)
 
@@ -57,7 +59,7 @@ struct WiFiFormView: View {
                     .foregroundColor(.secondary)
             }
 
-            // BẢO MẬT (người dùng tự chọn; chỉ ép .none khi Lưu nếu không có mật khẩu)
+            // BẢO MẬT
             Section {
                 NavigationLink {
                     SecurityPickerView(
@@ -79,6 +81,7 @@ struct WiFiFormView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .onAppear { pwDraft = item.password ?? "" }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -105,29 +108,13 @@ struct WiFiFormView: View {
         !item.ssid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    // Cấm khoảng trắng trong mật khẩu
-    private var passwordBindingNoSpace: Binding<String> {
-        Binding(
-            get: { item.password ?? "" },
-            set: { val in
-                let cleaned = val.filter { !$0.isWhitespace }
-                item.password = cleaned.isEmpty ? nil : cleaned
-            }
-        )
-    }
-
     private func save() {
-        // Phải có tên
         guard isSSIDValid else {
             showNameAlert = true
             return
         }
-
-        // Chỉ lúc bấm Lưu: nếu mật khẩu trống -> ép bảo mật = Không có
-        let pwdEmpty = (item.password ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if pwdEmpty {
-            item.security = .none
-        }
+        // Khi Lưu: nếu mật khẩu rỗng -> set bảo mật = Không có
+        if (item.password ?? "").isEmpty { item.security = .none }
 
         switch mode {
         case .create:
