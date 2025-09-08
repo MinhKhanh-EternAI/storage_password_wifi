@@ -91,7 +91,7 @@ struct ContentView: View {
     private var currentNetworkSection: some View {
         Section {
             HStack {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
                         Text(ssid).font(.headline)
@@ -109,7 +109,7 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
-                        // form với SSID hiện tại
+                        // PLUS ở MẠNG HIỆN TẠI: mở form có sẵn tên Wi-Fi hiện tại
                         presentForm(item: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
                     } else {
                         presentForm(item: newItem())
@@ -148,7 +148,7 @@ struct ContentView: View {
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     savedStatusDot
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
@@ -245,7 +245,7 @@ struct ContentView: View {
                     selectedIDs.removeAll()
                 }
             } else {
-                // “+” trên cùng: form TRỐNG (placeholder “Tên mạng”)
+                // PLUS TRÊN TOOLBAR: luôn mở form TRỐNG (placeholder “Tên mạng”)
                 Button { presentForm(item: newItem()) } label: {
                     Image(systemName: "plus")
                 }
@@ -444,7 +444,7 @@ private extension UIApplication {
     static func presentTop(_ vc: UIViewController) {
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.keyWindow?.rootViewController else { return }
-        root.present(vc, animated: true)    
+        root.present(vc, animated: true)
     }
 }
 private extension UIWindowScene {
