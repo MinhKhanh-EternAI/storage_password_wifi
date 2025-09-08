@@ -16,8 +16,16 @@ struct ContentView: View {
     @State private var selectedIDs = Set<UUID>()
     @State private var importError: String?
 
-    // Chỉ cho phép .json để tránh chọn nhầm định dạng
-    private let importerTypes: [UTType] = [.json]
+    // CHO PHÉP: .json + .js/.mjs/.cjs/.txt + fallback .data (để chọn được file export dạng JS)
+    private let importerTypes: [UTType] = {
+        var ts: [UTType] = [.json]
+        if let js  = UTType(filenameExtension: "js")  { ts.append(js)  }
+        if let mjs = UTType(filenameExtension: "mjs") { ts.append(mjs) }
+        if let cjs = UTType(filenameExtension: "cjs") { ts.append(cjs) }
+        if let txt = UTType(filenameExtension: "txt") { ts.append(txt) }
+        ts.append(.data)
+        return ts
+    }()
 
     var body: some View {
         NavigationStack {
