@@ -1,32 +1,22 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 struct ContentView: View {
     @EnvironmentObject var store: WiFiStore
     @EnvironmentObject var theme: ThemeManager
 
     @State private var showingAdd = false
-    @State private var showingExporter = false
-    @State private var showingImporter = false
-    @State private var exportDoc = WiFiJSONDocument(networks: [])
     @State private var searchText = ""
     @State private var confirmDelete: UUID?
     private let currentWiFi = CurrentWiFi()
+    private let firebase = FirebaseService()
 
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
-
-    // Loại file cho import – thêm .data làm fallback để iOS cho mở file
-    private let importerTypes: [UTType] = {
-        var types: [UTType] = []
-        if let json = UTType(filenameExtension: "json") { types.append(json) }
-        if let js   = UTType(filenameExtension: "js")   { types.append(js) }
-        if let mjs  = UTType(filenameExtension: "mjs")  { types.append(mjs) }
-        if let cjs  = UTType(filenameExtension: "cjs")  { types.append(cjs) }
-        if let txt  = UTType(filenameExtension: "txt")  { types.append(txt) }
-        types.append(.data) // ✅ không cần if-let
-        return types
-    }()
+    @State private var errorMessage: String?
+    @State private var addedToast = false
+    @State private var syncing = false   // để disable nút khi đang chạy
 
     var body: some View {
         NavigationStack {
@@ -35,11 +25,13 @@ struct ContentView: View {
                 .listSectionSpacingCompat(4)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { topToolbar }
-                // ✓ Search luôn cố định khi cuộn
                 .searchable(text: $searchText,
                             placement: .navigationBarDrawer(displayMode: .always),
                             prompt: "Search")
                 .onAppear { refreshSSID() }
+                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("wifiDidAdd"))) { _ in
+                    addedToast = true
+                }
                 .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
                     confirmDelete != nil
                 }, set: { v in
@@ -51,21 +43,13 @@ struct ContentView: View {
                     }
                 }
         }
-        .fileExporter(
-            isPresented: $showingExporter,
-            document: exportDoc,
-            contentType: .json,
-            defaultFilename: "wifi_networks.json",
-            onCompletion: { _ in }
-        )
-        .fileImporter(
-            isPresented: $showingImporter,
-            allowedContentTypes: importerTypes,
-            allowsMultipleSelection: false
-        ) { result in
-            handleImport(result)
+        .alert("Lỗi", isPresented: Binding(get: { errorMessage != nil },
+                                          set: { _ in errorMessage = nil })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
         }
-        // Thanh hành động khi đang chọn nhiều — chỉ có nút XÓA màu đỏ
+        .toast(isPresented: $addedToast, text: "Đã thêm Wi-Fi")
         .safeAreaInset(edge: .bottom) {
             if selecting {
                 Button(role: .destructive) {
@@ -97,7 +81,7 @@ struct ContentView: View {
     private var currentNetworkSection: some View {
         Section {
             HStack {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
                         Text(ssid).font(.headline)
@@ -115,9 +99,9 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
-                        pathToForm(with: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
+                        presentForm(item: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
                     } else {
-                        pathToForm(with: newItem())
+                        presentForm(item: newItem())
                     }
                 } label: {
                     Image(systemName: "plus").font(.title3)
@@ -153,7 +137,7 @@ struct ContentView: View {
                 emptyState
                     .listRowBackground(Color.clear)
             } header: {
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     savedStatusDot
                     Text("ĐÃ LƯU")
                         .textCase(.uppercase)
@@ -208,17 +192,6 @@ struct ContentView: View {
         }
     }
 
-    private var savedHeader: some View {
-        HStack {
-            Text("ĐÃ LƯU")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            Spacer()
-        }
-        .padding(.top, 4)
-    }
-
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
@@ -261,7 +234,8 @@ struct ContentView: View {
                     selectedIDs.removeAll()
                 }
             } else {
-                Button { pathToForm(with: newItem()) } label: {
+                // PLUS TRÊN TOOLBAR: luôn mở form TRỐNG
+                Button { presentForm(item: newItem()) } label: {
                     Image(systemName: "plus")
                 }
                 Menu {
@@ -271,14 +245,54 @@ struct ContentView: View {
                     } label: {
                         Label("Chọn Wi-Fi", systemImage: "checkmark.circle")
                     }
-                    Button { prepareExport(); showingExporter = true } label: {
+                    Button { performExport() } label: {
                         Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
                     }
-                    Button { showingImporter = true } label: {
-                        Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
+                    Button {
+                        syncFromFirebase()
+                    } label: {
+                        Label("Đồng bộ", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    Button {
+                        uploadToFirebase()
+                    } label: {
+                        Label("Sao lưu", systemImage: "icloud.and.arrow.up")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
+                }
+                .disabled(syncing)
+            }
+        }
+    }
+
+    // MARK: - Firebase actions
+
+    private func syncFromFirebase() {
+        syncing = true
+        firebase.fetchNetworks { result in
+            DispatchQueue.main.async {
+                syncing = false
+                switch result {
+                case .success(let items):
+                    store.items = items
+                case .failure(let err):
+                    errorMessage = "Lỗi đồng bộ: \(err.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func uploadToFirebase() {
+        syncing = true
+        firebase.uploadNetworks(store.items) { result in
+            DispatchQueue.main.async {
+                syncing = false
+                switch result {
+                case .success:
+                    addedToast = true
+                case .failure(let err):
+                    errorMessage = "Lỗi sao lưu: \(err.localizedDescription)"
                 }
             }
         }
@@ -286,7 +300,7 @@ struct ContentView: View {
 
     // MARK: - Helpers
 
-    private func pathToForm(with item: WiFiNetwork) {
+    private func presentForm(item: WiFiNetwork) {
         showingAdd = true
         let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
@@ -371,105 +385,15 @@ struct ContentView: View {
         }
     }
 
-    private func prepareExport() {
-        exportDoc = WiFiJSONDocument(networks: store.items)
-    }
-
-    // MARK: - Import
-
-    private func handleImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            let needsStop = url.startAccessingSecurityScopedResource()
-            defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
-
-            do {
-                let rawData = try Data(contentsOf: url)
-                let ext = url.pathExtension.lowercased()
-
-                let dataForDecode: Data
-                if ["js", "txt", "mjs", "cjs"].contains(ext) {
-                    guard let text = String(data: rawData, encoding: .utf8) else {
-                        throw ImportError.invalidEncoding
-                    }
-                    let jsonString = extractJSON(from: text)
-                    guard let jsonData = jsonString.data(using: .utf8) else {
-                        throw ImportError.invalidEncoding
-                    }
-                    dataForDecode = jsonData
-                } else {
-                    dataForDecode = rawData
-                }
-
-                let decoder = JSONDecoder()
-                var imported: [WiFiNetwork]?
-                if let arr = try? decoder.decode([WiFiNetwork].self, from: dataForDecode) {
-                    imported = arr
-                } else {
-                    struct Wrapper: Codable { let items: [WiFiNetwork] }
-                    if let wrap = try? decoder.decode(Wrapper.self, from: dataForDecode) {
-                        imported = wrap.items
-                    }
-                }
-                guard let list = imported, !list.isEmpty else { throw ImportError.empty }
-
-                let sanitized: [WiFiNetwork] = list.map { n in
-                    var x = n
-                    if let p = x.password {
-                        let cleaned = p.filter { !$0.isWhitespace }
-                        x.password = cleaned.isEmpty ? nil : cleaned
-                        if x.password == nil { x.security = .none }
-                    }
-                    return x
-                }
-                merge(sanitized)
-                store.sortInPlace()
-
-            } catch {
-                print("Import failed:", error.localizedDescription)
-            }
-
-        case .failure(let err):
-            print("Picker error:", err.localizedDescription)
+    private func performExport() {
+        do {
+            let url = try store.exportSnapshot()
+            let av = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+            UIApplication.presentTop(av)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
-
-    private func extractJSON(from text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let first = trimmed.first, first == "[" || first == "{" { return trimmed }
-        if let s = trimmed.firstIndex(of: "["), let e = trimmed.lastIndex(of: "]"), s < e {
-            return String(trimmed[s...e])
-        }
-        if let s = trimmed.firstIndex(of: "{"), let e = trimmed.lastIndex(of: "}"), s < e {
-            return String(trimmed[s...e])
-        }
-        return trimmed
-    }
-
-    private func merge(_ incoming: [WiFiNetwork]) {
-        var indexByID: [UUID: Int] = [:]
-        var indexBySSID: [String: Int] = [:]
-        for (i, it) in store.items.enumerated() {
-            indexByID[it.id] = i
-            indexBySSID[norm(it.ssid)] = i
-        }
-        for nw in incoming {
-            if let idx = indexByID[nw.id] {
-                store.items[idx] = nw
-            } else if let idx = indexBySSID[norm(nw.ssid)] {
-                store.items[idx] = nw
-            } else {
-                store.items.append(nw)
-            }
-        }
-    }
-
-    private func norm(_ s: String) -> String {
-        s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-
-    private enum ImportError: Error { case invalidEncoding, empty }
 
     private var isConnected: Bool {
         if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -495,7 +419,7 @@ private struct SecureDots: View {
             Text("Không bảo mật").foregroundStyle(.secondary).font(.footnote)
         } else {
             Text(String(repeating: "•", count: max(6, text.count)))
-                .foregroundStyle(.secondary).font(.title3)
+                .foregroundStyle(.secondary).font(.footnote)
         }
     }
 }
@@ -517,4 +441,17 @@ extension View {
     func listSectionSpacingCompat(_ spacing: CGFloat) -> some View {
         if #available(iOS 17.0, *) { self.listSectionSpacing(spacing) } else { self }
     }
+}
+
+// MARK: - UI helpers
+
+private extension UIApplication {
+    static func presentTop(_ vc: UIViewController) {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = scene.keyWindow?.rootViewController else { return }
+        root.present(vc, animated: true)
+    }
+}
+private extension UIWindowScene {
+    var keyWindow: UIWindow? { windows.first { $0.isKeyWindow } }
 }

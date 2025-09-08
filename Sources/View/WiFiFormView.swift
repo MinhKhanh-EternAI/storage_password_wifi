@@ -1,4 +1,5 @@
 import SwiftUI
+import SystemConfiguration.CaptiveNetwork
 
 struct WiFiFormView: View {
     enum Mode { case create, edit }
@@ -9,16 +10,24 @@ struct WiFiFormView: View {
 
     @State var item: WiFiNetwork
     @State private var showNameAlert = false
-    // soạn thảo mật khẩu (chặn space khi gõ)
     @State private var pwDraft: String = ""
+
+    // Bắt SSID/BSSID hiện tại (ẩn) chỉ để lưu nếu trùng tên — KHÔNG tự điền tên
+    private let currentWiFi = CurrentWiFi()
+    @State private var capturedSSIDFromCurrent: String = ""
+    @State private var capturedBSSID: String? = nil
+
+    init(mode: Mode, item: WiFiNetwork) {
+        self.mode = mode
+        self._item = State(initialValue: item)
+    }
 
     var body: some View {
         Form {
-            // THÔNG TIN
             Section {
                 let labelWidth: CGFloat = 92
 
-                // TÊN
+                // TÊN — luôn để người dùng nhập (placeholder “Tên mạng”)
                 HStack(spacing: 12) {
                     Text("Tên")
                         .foregroundColor(.primary)
@@ -32,7 +41,7 @@ struct WiFiFormView: View {
                 }
                 .padding(.vertical, 2)
 
-                // MẬT KHẨU — SecureField + chặn space khi gõ
+                // MẬT KHẨU
                 HStack(spacing: 12) {
                     Text("Mật khẩu")
                         .foregroundColor(.primary)
@@ -81,7 +90,15 @@ struct WiFiFormView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .onAppear { pwDraft = item.password ?? "" }
+        .onAppear {
+            pwDraft = item.password ?? ""
+
+            // Chỉ bắt SSID + BSSID hiện tại để lưu ẩn (KHÔNG gán vào item.ssid)
+            currentWiFi.fetchSSID { ssid in
+                capturedSSIDFromCurrent = ssid ?? ""
+                capturedBSSID = readCurrentBSSID()
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -113,19 +130,33 @@ struct WiFiFormView: View {
             showNameAlert = true
             return
         }
-        // Khi Lưu: nếu mật khẩu rỗng -> set bảo mật = Không có
         if (item.password ?? "").isEmpty { item.security = .none }
 
-        switch mode {
-        case .create:
-            store.items.append(item)
-            store.sortInPlace()
-        case .edit:
-            if let i = store.items.firstIndex(where: { $0.id == item.id }) {
-                store.items[i] = item
-                store.sortInPlace()
-            }
+        // Nếu đang thêm mới và tên trùng mạng hiện tại → gắn BSSID ẩn
+        if mode == .create,
+           !capturedSSIDFromCurrent.isEmpty,
+           item.ssid == capturedSSIDFromCurrent,
+           let b = capturedBSSID, !b.isEmpty {
+            item.bssid = b
+        }
+
+        store.upsert(item)
+        store.sortInPlace()
+
+        if mode == .create {
+            NotificationCenter.default.post(name: Notification.Name("wifiDidAdd"), object: nil)
         }
         dismiss()
+    }
+
+    private func readCurrentBSSID() -> String? {
+        guard let ifaces = CNCopySupportedInterfaces() as? [CFString] else { return nil }
+        for i in ifaces {
+            if let info = CNCopyCurrentNetworkInfo(i) as? [String: AnyObject],
+               let bssid = info[kCNNetworkInfoKeyBSSID as String] as? String {
+                return bssid
+            }
+        }
+        return nil
     }
 }

@@ -24,5 +24,26 @@
 
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Ứng dụng cần quyền vị trí để lấy tên mạng Wi-Fi hiện tại.</string>
+
+    <!-- Hiển thị thư mục ứng dụng trong Tệp, cho phép sửa trực tiếp -->
+    <key>UIFileSharingEnabled</key><true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key><true/>
+
+    <!-- Bật Document Browser để hiện mục 'Dung lượng tài liệu' trong Cài đặt -->
+    <key>UISupportsDocumentBrowser</key><true/>
+
+    <!-- Khai báo định dạng app hỗ trợ mở (để chọn file JSON dễ hơn) -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>JSON</string>
+            <key>LSHandlerRank</key><string>Default</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.json</string>
+                <string>public.data</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>
