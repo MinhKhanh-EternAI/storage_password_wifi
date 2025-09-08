@@ -142,6 +142,11 @@ struct WiFiFormView: View {
 
         // DÙ create hay edit, luôn dùng upsert để xử lý trùng BSSID
         store.upsert(item)
+        store.sortInPlace()
+
+        if mode == .create {
+            NotificationCenter.default.post(name: Notification.Name("wifiDidAdd"), object: nil)
+        }
         dismiss()
     }
 }

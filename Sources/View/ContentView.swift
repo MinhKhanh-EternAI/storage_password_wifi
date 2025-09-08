@@ -32,7 +32,7 @@ struct ContentView: View {
                             prompt: "Search")
                 .onAppear { refreshSSID() }
                 // Hiện toast khi Wi-Fi mới được thêm
-                .onReceive(NotificationCenter.default.publisher(for: .wifiDidAdd)) { _ in
+                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("wifiDidAdd"))) { _ in
                     addedToast = true
                 }
                 .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
@@ -444,7 +444,7 @@ private extension UIApplication {
     static func presentTop(_ vc: UIViewController) {
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.keyWindow?.rootViewController else { return }
-        root.present(vc, animated: true)
+        root.present(vc, animated: true)    
     }
 }
 private extension UIWindowScene {

@@ -9,15 +9,11 @@ final class WiFiStore: ObservableObject {
         didSet { persistToDisk() }
     }
 
-    /// SSID đang kết nối (hiển thị ở "Mạng hiện tại")
     @Published var currentSSID: String?
 
-    /// Người dùng đồng ý lưu trong "Trên iPhone"
     @Published var allowLocalStorage: Bool = UserDefaults.standard.object(forKey: "allowLocalStorage") as? Bool ?? true
-    /// Người dùng đồng ý lưu/sao lưu lên iCloud Drive
     @Published var allowICloudStorage: Bool = UserDefaults.standard.object(forKey: "allowICloudStorage") as? Bool ?? false
 
-    // Backup key cũ (migrate từ UserDefaults nếu có)
     private let legacyStorageKey = "WiFiStore.items.v1"
 
     // MARK: - Init
@@ -44,9 +40,7 @@ final class WiFiStore: ObservableObject {
         persistToDisk()
     }
 
-    // MARK: - Public reload (cho nút "Cập nhật")
-
-    /// Đọc lại database từ file (Documents/Database/wifi-database.json).
+    // Public reload (cho menu “Cập nhật”)
     func reloadFromDisk() {
         _ = restoreFromDisk()
         sortInPlace()
@@ -55,13 +49,12 @@ final class WiFiStore: ObservableObject {
 
     // MARK: - CRUD
 
-    /// Ghi đè theo BSSID nếu có (case-insensitive); nếu không có BSSID thì upsert theo id.
+    /// Upsert ưu tiên theo BSSID (ghi đè record trùng BSSID, giữ id cũ). Nếu không có BSSID thì upsert theo id.
     func upsert(_ item: WiFiNetwork) {
         var newItem = item
 
         if let bssid = item.bssid?.lowercased(), !bssid.isEmpty {
             if let idx = items.firstIndex(where: { $0.bssid?.lowercased() == bssid }) {
-                // Overwrite record trùng BSSID, giữ id cũ
                 newItem.id = items[idx].id
                 items[idx] = newItem
                 sortInPlace()
@@ -92,7 +85,7 @@ final class WiFiStore: ObservableObject {
             let data = try JSONEncoder.iso.encode(ExportFileV2(items: items))
 
             if allowLocalStorage {
-                try WiFiFileSystem.ensureDirectories()
+                WiFiFileSystem.ensureDirectories() // <- KHÔNG dùng try (hết warning)
                 try data.write(to: WiFiFileSystem.localDatabaseFile, options: .atomic)
             }
 
@@ -134,8 +127,8 @@ final class WiFiStore: ObservableObject {
     // MARK: - Export snapshots (Export/)
 
     struct ExportFileV2: Codable {
-        let schemaVersion: Int = 2
-        let exportedAt: Date = .now
+        var schemaVersion: Int = 2   // <- var để hết cảnh báo decode
+        var exportedAt: Date = Date()
         var items: [WiFiNetwork]
     }
 
@@ -147,7 +140,7 @@ final class WiFiStore: ObservableObject {
         let payload = ExportFileV2(items: items)
         let data = try JSONEncoder.iso.encode(payload)
 
-        try WiFiFileSystem.ensureDirectories()
+        WiFiFileSystem.ensureDirectories() // <- KHÔNG dùng try
         try data.write(to: localURL, options: .atomic)
 
         if allowICloudStorage, let iCloudDir = WiFiFileSystem.iCloudExportDir {
@@ -157,7 +150,7 @@ final class WiFiStore: ObservableObject {
         return localURL
     }
 
-    // MARK: - Import (.json / .js / .txt) with security-scoped URL + merge by BSSID
+    // MARK: - Import (.json) + merge theo BSSID
 
     enum ImportError: Error { case invalidEncoding, invalidFormat, empty }
 
@@ -206,15 +199,13 @@ final class WiFiStore: ObservableObject {
     private func mergeByBSSID(_ incoming: [WiFiNetwork]) {
         var indexByBSSID: [String: Int] = [:]
         for (i, it) in items.enumerated() {
-            if let b = it.bssid?.lowercased(), !b.isEmpty {
-                indexByBSSID[b] = i
-            }
+            if let b = it.bssid?.lowercased(), !b.isEmpty { indexByBSSID[b] = i }
         }
 
         for var nw in incoming {
             guard let bss = nw.bssid?.lowercased(), !bss.isEmpty else { continue }
             if let idx = indexByBSSID[bss] {
-                // Ghi đè: giữ id cũ
+                // giữ id cũ
                 nw.id = items[idx].id
                 items[idx] = nw
             } else {
@@ -232,6 +223,6 @@ private extension JSONEncoder {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         enc.dateEncodingStrategy = .iso8601
-        return enc
+        return enc;
     }
 }

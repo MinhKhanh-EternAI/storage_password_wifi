@@ -2,29 +2,19 @@ import Foundation
 import UniformTypeIdentifiers
 import SwiftUI
 
-/// Dùng cho fileImporter / fileExporter (định dạng JSON danh sách WiFiNetwork)
+/// Dùng cho fileImporter/fileExporter khi cần, linh hoạt nhiều schema.
 struct WiFiJSONDocument: FileDocument, Identifiable {
-    static var readableContentTypes: [UTType] { [.json] }
+    static var readableContentTypes: [UTType] { [.json, .data] }
     static var writableContentTypes: [UTType] { [.json] }
 
     var id = UUID()
     var networks: [WiFiNetwork]
 
-    // MARK: - Schema
-
-    /// Schema v2 (mới)
-    struct ExportFileV2: Codable {
-        let schemaVersion: Int = 2
-        let exportedAt: Date = .now
+    struct Payload: Codable {
+        var schemaVersion: Int = 2   // <- var để hết warning
+        var exportedAt: Date = Date()
         var items: [WiFiNetwork]
     }
-
-    /// Wrapper cũ có thể gặp (không đảm bảo có schemaVersion)
-    private struct WrapperV1: Codable {
-        var items: [WiFiNetwork]
-    }
-
-    // MARK: - Init
 
     init(networks: [WiFiNetwork]) {
         self.networks = networks
@@ -34,41 +24,31 @@ struct WiFiJSONDocument: FileDocument, Identifiable {
         guard let data = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        let decoder = JSONDecoder()
-
-        // Ưu tiên v2
-        if let v2 = try? decoder.decode(ExportFileV2.self, from: data) {
-            self.networks = v2.items
-            return
-        }
-
-        // Thử wrapper V1
-        if let wrap = try? decoder.decode(WrapperV1.self, from: data) {
+        let dec = JSONDecoder()
+        if let p = try? dec.decode(Payload.self, from: data) {
+            self.networks = p.items
+        } else if let arr = try? dec.decode([WiFiNetwork].self, from: data) {
+            self.networks = arr
+        } else if let wrap = try? dec.decode(Wrapper.self, from: data) {
             self.networks = wrap.items
-            return
+        } else {
+            throw CocoaError(.fileReadCorruptFile)
         }
-
-        // Cuối cùng: mảng thuần [WiFiNetwork]
-        self.networks = try decoder.decode([WiFiNetwork].self, from: data)
     }
-
-    // MARK: - Write
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        // Luôn xuất theo schema v2
-        let payload = ExportFileV2(items: networks)
-        let data = try JSONEncoder.iso.encode(payload)
+        let data = try JSONEncoder.iso.encode(Payload(items: networks))
         return .init(regularFileWithContents: data)
     }
-}
 
-// MARK: - JSON helpers
+    private struct Wrapper: Codable { let items: [WiFiNetwork] }
+}
 
 private extension JSONEncoder {
     static var iso: JSONEncoder {
-        let e = JSONEncoder()
-        e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        e.dateEncodingStrategy = .iso8601
-        return e
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        enc.dateEncodingStrategy = .iso8601
+        return enc
     }
 }
