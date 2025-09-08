@@ -23,6 +23,7 @@ let project = Project(
             ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
+                // Firebase dependencies
                 .package(product: "FirebaseCore"),
                 .package(product: "FirebaseFirestore"),
                 .package(product: "FirebaseAuth"),
@@ -31,7 +32,10 @@ let project = Project(
                 "SWIFT_VERSION": "5.0",
                 "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
                 "INFOPLIST_FILE": "Info.plist",
-                "CODE_SIGNING_ALLOWED": "NO" // để build unsigned IPA
+
+                // Nếu build unsigned IPA để CI/CD thì giữ NO
+                // Nếu muốn chạy trên thiết bị thật thì bỏ dòng này
+                "CODE_SIGNING_ALLOWED": "NO"
             ])
         )
     ]

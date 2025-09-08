@@ -18,6 +18,9 @@ struct ContentView: View {
     @State private var addedToast = false
     @State private var syncing = false   // để disable nút khi đang chạy
 
+    // 🔥 State cho animation refresh
+    @State private var isRefreshing = false
+
     var body: some View {
         NavigationStack {
             listContent
@@ -119,9 +122,21 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                        isRefreshing = true
+                    }
                     refreshSSID()
+                    // reset sau 1s
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                            isRefreshing = false
+                        }
+                    }
                 } label: {
-                    Label("Làm mới", systemImage: "arrow.clockwise").font(.footnote)
+                    Label("Làm mới", systemImage: "arrow.clockwise")
+                        .font(.footnote)
+                        .scaleEffect(isRefreshing ? 0.8 : 1.0) // chữ nhỏ lại
+                        .rotationEffect(.degrees(isRefreshing ? 360 : 0)) // icon xoay
                 }
                 .buttonStyle(.borderless)
                 .disabled(selecting)

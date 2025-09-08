@@ -15,6 +15,7 @@ final class WiFiStore: ObservableObject {
     @Published var allowICloudStorage: Bool = UserDefaults.standard.object(forKey: "allowICloudStorage") as? Bool ?? false
 
     private let legacyStorageKey = "WiFiStore.items.v1"
+    private let firebase = FirebaseService()   // 🔗 Service kết nối Firestore
 
     // MARK: - Init
 
@@ -99,7 +100,6 @@ final class WiFiStore: ObservableObject {
 
             if allowLocalStorage {
                 WiFiFileSystem.ensureDirectories()
-                // lưu JSON (có thể là .json hoặc .js, nhưng dùng url định nghĩa sẵn trong WiFiFileSystem)
                 try data.write(to: WiFiFileSystem.localDatabaseFile, options: .atomic)
             }
 
@@ -222,6 +222,32 @@ final class WiFiStore: ObservableObject {
         }
         persistToDisk()
     }
+
+    // MARK: - Cloud Sync (Firestore)
+
+    func syncToCloud() {
+        firebase.syncUpload(from: self) { result in
+            switch result {
+            case .success:
+                print("✅ Synced to Firestore")
+            case .failure(let error):
+                print("❌ Sync error:", error)
+            }
+        }
+    }
+
+    func restoreFromCloud() {
+        firebase.fetchNetworks { result in
+            switch result {
+            case .success(let networks):
+                DispatchQueue.main.async {
+                    self.replaceAll(with: networks)
+                }
+            case .failure(let error):
+                print("❌ Fetch error:", error)
+            }
+        }
+    }
 }
 
 // MARK: - JSON helpers
@@ -234,4 +260,3 @@ private extension JSONEncoder {
         return enc
     }
 }
-    
