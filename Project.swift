@@ -18,9 +18,8 @@ let project = Project(
             infoPlist: .file(path: "Info.plist"),
             sources: ["Sources/**"],
             resources: [
-                .glob(pattern: "Assets.xcassets/**"),
-                .glob(pattern: "GoogleService-Info.plist"),
-                .glob(pattern: "README.md")
+                "Assets.xcassets",
+                "GoogleService-Info.plist"
             ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
@@ -32,7 +31,7 @@ let project = Project(
                 "SWIFT_VERSION": "5.0",
                 "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
                 "INFOPLIST_FILE": "Info.plist",
-                "CODE_SIGNING_ALLOWED": "NO"
+                "CODE_SIGNING_ALLOWED": "NO" // bỏ nếu muốn chạy trên thiết bị thật
             ])
         )
     ]
