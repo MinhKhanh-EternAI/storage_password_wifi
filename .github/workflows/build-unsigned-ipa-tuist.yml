@@ -33,6 +33,7 @@ jobs:
           eval "$(/Users/runner/.local/bin/mise activate bash)"
           mise install tuist
           mise use tuist@latest
+          which tuist || true
           tuist version
 
       - name: Normalize & validate Info.plist
