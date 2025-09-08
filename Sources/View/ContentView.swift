@@ -66,8 +66,7 @@ struct ContentView: View {
                     deleteSelected()
                 } label: {
                     Text(selectedIDs.isEmpty ? "Xóa" : "Xóa (\(selectedIDs.count))")
-                    .fontWeight(.bold)
-                    .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
@@ -215,7 +214,6 @@ struct ContentView: View {
                     selecting = false
                     selectedIDs.removeAll()
                 }
-                .fontWeight(.bold)
             } else {
                 Menu {
                     Picker("Giao diện", selection: $theme.mode) {
