@@ -29,6 +29,7 @@ jobs:
       - name: Install Tuist
         run: |
           curl https://mise.jdx.dev/install.sh | sh
+          eval "$(/Users/runner/.local/bin/mise activate bash)"
           mise install tuist
           mise use tuist@latest
           tuist version
