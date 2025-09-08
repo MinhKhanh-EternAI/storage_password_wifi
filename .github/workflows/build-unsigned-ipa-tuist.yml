@@ -28,11 +28,13 @@ jobs:
 
       - name: Install Mise and Tuist
         run: |
+          set -euo pipefail
           curl https://mise.jdx.dev/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           eval "$(/Users/runner/.local/bin/mise activate bash)"
           mise install tuist
-          mise use tuist@latest
+          mise use tuist@latest || true   # tránh exit 1 ở đây
+          eval "$(/Users/runner/.local/bin/mise activate bash)"
           which tuist
           tuist version
 
@@ -57,9 +59,11 @@ jobs:
 
       - name: Tuist generate
         run: |
+          set -euo pipefail
           eval "$(/Users/runner/.local/bin/mise activate bash)"
           tuist generate --no-open
 
+          
       - name: Build unsigned .app
         shell: bash
         run: |
