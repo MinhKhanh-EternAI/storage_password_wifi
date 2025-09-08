@@ -17,8 +17,8 @@ let project = Project(
             resources: ["Assets.xcassets/**", "README.md"],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
-                .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
-                .product(name: "FirebaseFirestore", package: "firebase-ios-sdk")
+                .package(product: "FirebaseCore", package: "firebase-ios-sdk"),
+                .package(product: "FirebaseFirestore", package: "firebase-ios-sdk")
             ],
             settings: .settings(base: [
                 "SWIFT_VERSION": "5.0",
