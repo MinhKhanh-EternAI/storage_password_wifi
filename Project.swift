@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "WiFiOffline",
     packages: [
-        .remote(url: "https://github.com/firebase/firebase-ios-sdk", requirement: .upToNextMajor(from: "12.2.0"))
+        .remote(url: "https://github.com/firebase/firebase-ios-sdk", requirement: .upToNextMajor(from: "10.29.0"))
     ],
     targets: [
         .target(
@@ -16,6 +16,7 @@ let project = Project(
             sources: ["Sources/**"],
             resources: [
                 .glob(pattern: "Assets.xcassets/**"),
+                .glob(pattern: "GoogleService-Info.plist"),
                 .glob(pattern: "README.md")
             ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
