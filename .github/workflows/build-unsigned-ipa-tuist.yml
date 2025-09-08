@@ -2,9 +2,9 @@ name: "CI - Xcode/Tuist unsigned IPA pipeline"
 
 on:
   push:
-    branches: ['**']       # chạy trên mọi nhánh
+    branches: ['**']
   pull_request:
-    branches: ['**']       # chạy khi mở PR từ bất kỳ nhánh nào
+    branches: ['**']
   workflow_dispatch:
 
 concurrency:
@@ -33,7 +33,7 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           eval "$(/Users/runner/.local/bin/mise activate bash)"
           mise install tuist
-          mise use tuist@latest || true   # tránh exit 1 ở đây
+          mise use tuist@latest || true
           eval "$(/Users/runner/.local/bin/mise activate bash)"
           which tuist
           tuist version
@@ -57,11 +57,11 @@ jobs:
           plutil -convert xml1 Info.plist
           plutil -lint Info.plist
 
-      - name: Tuist fetch
+      - name: Tuist install
         run: |
           set -euo pipefail
           eval "$(/Users/runner/.local/bin/mise activate bash)"
-          tuist fetch
+          tuist install
 
       - name: Tuist generate
         run: |
