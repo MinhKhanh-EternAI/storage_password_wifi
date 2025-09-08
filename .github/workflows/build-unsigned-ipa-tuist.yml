@@ -57,13 +57,18 @@ jobs:
           plutil -convert xml1 Info.plist
           plutil -lint Info.plist
 
+      - name: Tuist fetch
+        run: |
+          set -euo pipefail
+          eval "$(/Users/runner/.local/bin/mise activate bash)"
+          tuist fetch
+
       - name: Tuist generate
         run: |
           set -euo pipefail
           eval "$(/Users/runner/.local/bin/mise activate bash)"
           tuist generate --no-open
 
-          
       - name: Build unsigned .app
         shell: bash
         run: |
