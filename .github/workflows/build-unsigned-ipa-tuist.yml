@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15  # Sử dụng macOS 15 với Xcode 16
+    runs-on: macos-15  # macOS 15 với Xcode 16
 
     steps:
       - name: Checkout
@@ -29,11 +29,11 @@ jobs:
       - name: Install Mise and Tuist
         run: |
           curl https://mise.jdx.dev/install.sh | sh
-          eval "$(/Users/runner/.local/bin/mise activate bash)"   # Quan trọng!
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          eval "$(/Users/runner/.local/bin/mise activate bash)"
           mise install tuist
           mise use tuist@latest
           tuist version
-
 
       - name: Normalize & validate Info.plist
         shell: bash
@@ -55,7 +55,9 @@ jobs:
           plutil -lint Info.plist
 
       - name: Tuist generate
-        run: tuist generate --no-open
+        run: |
+          eval "$(/Users/runner/.local/bin/mise activate bash)"
+          tuist generate --no-open
 
       - name: Build unsigned .app
         shell: bash
