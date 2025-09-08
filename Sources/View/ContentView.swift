@@ -266,7 +266,7 @@ struct ContentView: View {
                     Button {
                         store.reloadFromDisk()
                     } label: {
-                        Label("Cập nhật", systemImage: "arrow.clockwise")
+                        Label("Đồng bộ", systemImage: "arrow.triangle.2.circlepath")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -413,8 +413,8 @@ private struct SecureDots: View {
         if text.isEmpty {
             Text("Không bảo mật").foregroundStyle(.secondary).font(.footnote)
         } else {
-            Text(String(repeating: "•", count: max(6, text.count)))
-                .foregroundStyle(.secondary).font(.title3)
+            Text(String(repeating: "●", count: max(6, text.count)))
+                .foregroundStyle(.secondary).font(.footnote)
         }
     }
 }
