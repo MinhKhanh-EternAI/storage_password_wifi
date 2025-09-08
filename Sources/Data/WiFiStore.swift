@@ -142,21 +142,15 @@ final class WiFiStore: ObservableObject {
 
     @discardableResult
     func exportSnapshot() throws -> URL {
-        let fileName = WiFiFileSystem.makeTimestampedExportFileName()
-        let localURL = WiFiFileSystem.localExportDir.appendingPathComponent(fileName)
-
         let payload = ExportFileV2(items: items)
         let data = try JSONEncoder.iso.encode(payload)
 
-        WiFiFileSystem.ensureDirectories()
-        try data.write(to: localURL, options: .atomic)
-
-        if allowICloudStorage, let iCloudDir = WiFiFileSystem.iCloudExportDir {
-            let icURL = iCloudDir.appendingPathComponent(fileName)
-            try data.write(to: icURL, options: .atomic)
-        }
-        return localURL
+        // Lưu tạm vào file trong sandbox trước khi mở picker
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("wifi-export.json")
+        try data.write(to: tempURL, options: .atomic)
+        return tempURL
     }
+
 
     // MARK: - Import (.json) + merge theo BSSID
 

@@ -140,12 +140,11 @@ struct ContentView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.clockwise")
-                            .rotationEffect(.degrees(isRefreshing ? 360 : 0)) // chỉ xoay icon
                         Text("Làm mới")
-                            .font(.footnote)
-                            .scaleEffect(isRefreshing ? 0.8 : 1.0) // chỉ scale chữ
                     }
-                }
+                    .font(.footnote)
+                    .scaleEffect(isRefreshing ? 0.8 : 1.0)
+}
                 .buttonStyle(.borderless)
                 .disabled(selecting)
             }
@@ -424,12 +423,13 @@ struct ContentView: View {
     private func performExport() {
         do {
             let url = try store.exportSnapshot()
-            let av = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-            UIApplication.presentTop(av)
+            let picker = UIDocumentPickerViewController(forExporting: [url])
+            UIApplication.presentTop(picker)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
+
 
     private var isConnected: Bool {
         if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
