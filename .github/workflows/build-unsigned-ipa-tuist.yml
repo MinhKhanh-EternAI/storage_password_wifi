@@ -26,6 +26,16 @@ jobs:
           xcodebuild -version
           sw_vers
 
+      - name: Cache SwiftPM
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
       - name: Install Mise and Tuist
         run: |
           set -euo pipefail
@@ -68,6 +78,13 @@ jobs:
           set -euo pipefail
           eval "$(/Users/runner/.local/bin/mise activate bash)"
           tuist generate --no-open
+
+      - name: Resolve Swift Packages
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies \
+            -workspace ./WiFiOffline.xcworkspace \
+            -scheme WiFiOffline
 
       - name: Build unsigned .app
         shell: bash
