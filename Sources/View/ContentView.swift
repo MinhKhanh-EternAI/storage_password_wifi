@@ -27,6 +27,9 @@ struct ContentView: View {
     @State private var resultSubtitle = ""
     @State private var isError = false
 
+    // 🔥 State cho alert xác nhận sao lưu
+    @State private var showBackupConfirm = false
+
     var body: some View {
         NavigationStack {
             listContent
@@ -52,10 +55,20 @@ struct ContentView: View {
                     }
                 }
         }
+        // Alert kết quả Firebase
         .alert(resultTitle, isPresented: $showResultMessage) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(resultSubtitle).font(.footnote)
+        }
+        // Alert xác nhận Sao lưu
+        .alert("⚠️ Cảnh báo", isPresented: $showBackupConfirm) {
+            Button("Hủy", role: .cancel) {}
+            Button("Sao lưu", role: .destructive) {
+                uploadToFirebase()
+            }
+        } message: {
+            Text("Bạn có chắc chắn muốn sao lưu dữ liệu không?\nQuá trình này có thể ghi đè và mất dữ liệu cũ.")
         }
         .toast(isPresented: $addedToast, text: "Đã thêm Wi-Fi")
         .safeAreaInset(edge: .bottom) {
@@ -131,8 +144,8 @@ struct ContentView: View {
                         isRefreshing = true
                     }
                     refreshSSID()
-                    // reset sau 1s
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    // ✅ reset sau 0.3s
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                             isRefreshing = false
                         }
@@ -144,7 +157,7 @@ struct ContentView: View {
                     }
                     .font(.footnote)
                     .scaleEffect(isRefreshing ? 0.8 : 1.0)
-}
+                }
                 .buttonStyle(.borderless)
                 .disabled(selecting)
             }
@@ -275,7 +288,8 @@ struct ContentView: View {
                         Label("Đồng bộ", systemImage: "arrow.triangle.2.circlepath")
                     }
                     Button {
-                        uploadToFirebase()
+                        // Thay vì gọi trực tiếp uploadToFirebase
+                        showBackupConfirm = true
                     } label: {
                         Label("Sao lưu", systemImage: "icloud.and.arrow.up")
                     }
@@ -429,7 +443,6 @@ struct ContentView: View {
             errorMessage = error.localizedDescription
         }
     }
-
 
     private var isConnected: Bool {
         if let s = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
