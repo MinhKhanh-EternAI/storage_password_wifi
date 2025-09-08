@@ -14,21 +14,16 @@ struct ContentView: View {
 
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
-    @State private var errorMessage: String?
-    @State private var addedToast = false
-    @State private var syncing = false   // để disable nút khi đang chạy
+    @State private var syncing = false
 
     // 🔥 State cho animation refresh
     @State private var isRefreshing = false
 
-    // 🔥 State cho cảnh báo xác nhận sao lưu
-    @State private var showBackupConfirm = false
-
-    // 🔥 State cho banner thông báo kết quả
+    // 🔥 State cho banner
     @State private var showBanner = false
-    @State private var lastBackupSuccess = false
-    @State private var lastBackupCount = 0
-    @State private var lastBackupMessage: String? = nil
+    @State private var lastSuccess = false
+    @State private var lastCount = 0
+    @State private var lastMessage: String? = nil
 
     var body: some View {
         NavigationStack {
@@ -41,9 +36,6 @@ struct ContentView: View {
                             placement: .navigationBarDrawer(displayMode: .always),
                             prompt: "Search")
                 .onAppear { refreshSSID() }
-                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("wifiDidAdd"))) { _ in
-                    addedToast = true
-                }
                 .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
                     confirmDelete != nil
                 }, set: { v in
@@ -51,20 +43,14 @@ struct ContentView: View {
                 })) {
                     Button("Hủy", role: .cancel) {}
                     Button("Xóa", role: .destructive) {
-                        if let id = confirmDelete { store.delete(id) }
+                        if let id = confirmDelete {
+                            store.delete(id)
+                            showBannerResult(success: true,
+                                             message: "Đã xóa 1 Wi-Fi")
+                        }
                     }
                 }
         }
-        // ⚠️ Alert xác nhận Sao lưu
-        .alert("⚠️ Cảnh báo ⚠️", isPresented: $showBackupConfirm) {
-            Button("Hủy", role: .cancel) {}
-            Button("Sao lưu", role: .destructive) {
-                uploadToFirebase()
-            }
-        } message: {
-            Text("Quá trình này có thể ghi đè dữ liệu cũ.\nTiếp tục?")
-        }
-        .toast(isPresented: $addedToast, text: "Đã thêm Wi-Fi")
         .safeAreaInset(edge: .bottom) {
             if selecting {
                 Button(role: .destructive) {
@@ -84,12 +70,12 @@ struct ContentView: View {
         // 🔥 Overlay Banner
         .overlay(alignment: .top) {
             if showBanner {
-                BannerView(success: lastBackupSuccess,
-                           count: lastBackupCount,
-                           message: lastBackupMessage)
+                BannerView(success: lastSuccess,
+                           count: lastCount,
+                           message: lastMessage)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation { showBanner = false }
                     }
                 }
@@ -128,7 +114,9 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
-                        presentForm(item: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
+                        presentForm(item: WiFiNetwork(ssid: ssid,
+                                                      password: nil,
+                                                      security: .wpa2wpa3))
                     } else {
                         presentForm(item: newItem())
                     }
@@ -148,13 +136,12 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    withAnimation(.spring(response: 0.1, dampingFraction: 0.5)) {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
                         isRefreshing = true
                     }
                     refreshSSID()
-                    // ✅ reset sau 0.3s
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             isRefreshing = false
                         }
                     }
@@ -199,18 +186,26 @@ struct ContentView: View {
                             Button {
                                 toggleSelect(network.id)
                             } label: {
-                                row(for: network, selecting: true, selected: selectedIDs.contains(network.id))
+                                row(for: network,
+                                    selecting: true,
+                                    selected: selectedIDs.contains(network.id))
                             }
                             .buttonStyle(.plain)
                             .swipeActions { }
                         } else {
                             NavigationLink {
-                                WiFiDetailView(item: network).environmentObject(store)
+                                WiFiDetailView(item: network)
+                                    .environmentObject(store)
                             } label: {
-                                row(for: network, selecting: false, selected: false)
+                                row(for: network,
+                                    selecting: false,
+                                    selected: false)
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) { confirmDelete = network.id } label: {
+                            .swipeActions(edge: .trailing,
+                                          allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    confirmDelete = network.id
+                                } label: {
                                     Label("Xóa", systemImage: "trash")
                                 }.tint(.red)
                             }
@@ -287,14 +282,10 @@ struct ContentView: View {
                     Button { performExport() } label: {
                         Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
                     }
-                    Button {
-                        syncFromFirebase()
-                    } label: {
+                    Button { syncFromFirebase() } label: {
                         Label("Đồng bộ", systemImage: "arrow.triangle.2.circlepath")
                     }
-                    Button {
-                        showBackupConfirm = true
-                    } label: {
+                    Button { uploadToFirebase() } label: {
                         Label("Sao lưu", systemImage: "icloud.and.arrow.up")
                     }
                 } label: {
@@ -315,9 +306,12 @@ struct ContentView: View {
                 switch result {
                 case .success(let items):
                     store.items = items
-                    showBannerResult(success: true, isSync: true, count: items.count)
+                    showBannerResult(success: true,
+                                     message: "Đã đồng bộ: \(items.count) Wi-Fi",
+                                     count: items.count)
                 case .failure(let err):
-                    showBannerResult(success: false, isSync: true, count: 0, error: err.localizedDescription)
+                    showBannerResult(success: false,
+                                     message: err.localizedDescription)
                 }
             }
         }
@@ -330,20 +324,23 @@ struct ContentView: View {
                 syncing = false
                 switch result {
                 case .success:
-                    showBannerResult(success: true, isSync: false, count: store.items.count)
+                    showBannerResult(success: true,
+                                     message: "Đã sao lưu: \(store.items.count) Wi-Fi",
+                                     count: store.items.count)
                 case .failure(let err):
-                    showBannerResult(success: false, isSync: false, count: 0, error: err.localizedDescription)
+                    showBannerResult(success: false,
+                                     message: err.localizedDescription)
                 }
             }
         }
     }
 
-    private func showBannerResult(success: Bool, isSync: Bool, count: Int, error: String? = nil) {
-        lastBackupSuccess = success
-        lastBackupCount = count
-        lastBackupMessage = success
-            ? (isSync ? "Đã đồng bộ: \(count) Wi-Fi" : "Đã sao lưu: \(count) Wi-Fi")
-            : (error ?? "Có lỗi xảy ra")
+    private func showBannerResult(success: Bool,
+                                  message: String,
+                                  count: Int = 0) {
+        lastSuccess = success
+        lastMessage = message
+        lastCount = count
         withAnimation {
             showBanner = true
         }
@@ -353,7 +350,8 @@ struct ContentView: View {
 
     private func presentForm(item: WiFiNetwork) {
         showingAdd = true
-        let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
+        let view = WiFiFormView(mode: .create, item: item)
+            .environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
         if let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
@@ -361,6 +359,7 @@ struct ContentView: View {
            let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
             root.present(hosting, animated: true)
         }
+        showBannerResult(success: true, message: "Đã lưu Wi-Fi")
     }
 
     private var filteredItems: [WiFiNetwork] {
@@ -394,7 +393,9 @@ struct ContentView: View {
         .padding(.vertical, 16)
     }
 
-    private func row(for item: WiFiNetwork, selecting: Bool, selected: Bool) -> some View {
+    private func row(for item: WiFiNetwork,
+                     selecting: Bool,
+                     selected: Bool) -> some View {
         HStack(spacing: 12) {
             if selecting {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
@@ -410,6 +411,11 @@ struct ContentView: View {
             if !selecting {
                 Image(systemName: "qrcode")
                     .foregroundStyle(.secondary)
+                    .onTapGesture {
+                        UIPasteboard.general.string = item.password ?? ""
+                        showBannerResult(success: true,
+                                         message: "Đã sao chép mật khẩu Wi-Fi")
+                    }
             }
         }
         .contentShape(Rectangle())
@@ -422,6 +428,8 @@ struct ContentView: View {
     private func deleteSelected() {
         guard !selectedIDs.isEmpty else { return }
         store.items.removeAll { selectedIDs.contains($0.id) }
+        showBannerResult(success: true,
+                         message: "Đã xóa \(selectedIDs.count) Wi-Fi")
         selectedIDs.removeAll()
         selecting = false
     }
@@ -441,8 +449,9 @@ struct ContentView: View {
             let url = try store.exportSnapshot()
             let picker = UIDocumentPickerViewController(forExporting: [url])
             UIApplication.presentTop(picker)
+            showBannerResult(success: true, message: "Đã xuất dữ liệu Wi-Fi")
         } catch {
-            errorMessage = error.localizedDescription
+            showBannerResult(success: false, message: error.localizedDescription)
         }
     }
 
@@ -467,10 +476,13 @@ private struct SecureDots: View {
     let text: String
     var body: some View {
         if text.isEmpty {
-            Text("Không bảo mật").foregroundStyle(.secondary).font(.footnote)
+            Text("Không bảo mật")
+                .foregroundStyle(.secondary)
+                .font(.footnote)
         } else {
             Text(String(repeating: "•", count: max(6, text.count)))
-                .foregroundStyle(.secondary).font(.footnote)
+                .foregroundStyle(.secondary)
+                .font(.footnote)
         }
     }
 }
