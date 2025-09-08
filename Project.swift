@@ -2,6 +2,12 @@ import ProjectDescription
 
 let project = Project(
     name: "WiFiOffline",
+    packages: [
+        .remote(
+            url: "https://github.com/firebase/firebase-ios-sdk.git",
+            requirement: .upToNextMajor(from: "10.29.0")
+        )
+    ],
     targets: [
         .target(
             name: "WiFiOffline",
@@ -18,9 +24,9 @@ let project = Project(
             ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
-                .external(name: "FirebaseCore"),
-                .external(name: "FirebaseFirestore"),
-                .external(name: "FirebaseAuth") // nếu cần
+                .package(product: "FirebaseCore"),
+                .package(product: "FirebaseFirestore"),
+                .package(product: "FirebaseAuth") // nếu dùng Auth
             ],
             settings: .settings(base: [
                 "SWIFT_VERSION": "5.0",
