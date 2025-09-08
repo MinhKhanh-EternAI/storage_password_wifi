@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UniformTypeIdentifiers
 
 final class WiFiStore: ObservableObject {
     // MARK: - State
@@ -11,19 +12,37 @@ final class WiFiStore: ObservableObject {
     /// SSID đang kết nối (hiển thị ở "Mạng hiện tại")
     @Published var currentSSID: String?
 
+    /// Người dùng đồng ý lưu trong "Trên iPhone"
+    @Published var allowLocalStorage: Bool = UserDefaults.standard.object(forKey: "allowLocalStorage") as? Bool ?? true
+    /// Người dùng đồng ý lưu/sao lưu lên iCloud Drive
+    @Published var allowICloudStorage: Bool = UserDefaults.standard.object(forKey: "allowICloudStorage") as? Bool ?? false
+
     // Backup key cũ (migrate từ UserDefaults nếu có)
     private let legacyStorageKey = "WiFiStore.items.v1"
 
     // MARK: - Init
 
     init() {
-        // Tạo sẵn thư mục
         WiFiFileSystem.ensureDirectories()
-        // Ưu tiên khôi phục từ file; nếu chưa có, thử migrate từ UserDefaults
+        // Khôi phục từ file, nếu không có thì migrate từ UserDefaults
         if !restoreFromDisk() {
             restoreFromUserDefaultsAndWriteToDisk()
         }
         sortInPlace()
+    }
+
+    // MARK: - Consent
+
+    func setAllowLocalStorage(_ on: Bool) {
+        allowLocalStorage = on
+        UserDefaults.standard.set(on, forKey: "allowLocalStorage")
+        persistToDisk()
+    }
+
+    func setAllowICloudStorage(_ on: Bool) {
+        allowICloudStorage = on
+        UserDefaults.standard.set(on, forKey: "allowICloudStorage")
+        persistToDisk()
     }
 
     // MARK: - CRUD
@@ -34,7 +53,7 @@ final class WiFiStore: ObservableObject {
 
         if let bssid = item.bssid?.lowercased(), !bssid.isEmpty {
             if let idx = items.firstIndex(where: { $0.bssid?.lowercased() == bssid }) {
-                // Overwrite record trùng BSSID, giữ nguyên id cũ để ổn định UI
+                // Overwrite record trùng BSSID, giữ id cũ
                 newItem.id = items[idx].id
                 items[idx] = newItem
                 sortInPlace()
@@ -55,23 +74,21 @@ final class WiFiStore: ObservableObject {
     }
 
     func sortInPlace() {
-        items.sort {
-            $0.ssid.localizedCaseInsensitiveCompare($1.ssid) == .orderedAscending
-        }
+        items.sort { $0.ssid.localizedCaseInsensitiveCompare($1.ssid) == .orderedAscending }
     }
 
-    // MARK: - Persistence (File in Wi-Fi/Database)
+    // MARK: - Persistence (File in Documents & iCloud)
 
-    /// Ghi CSDL vào Wi-Fi/Database/wifi-database.json (local) và bản sao iCloud (nếu có)
     private func persistToDisk() {
         do {
             let data = try JSONEncoder.iso.encode(ExportFileV2(items: items))
-            // Local
-            try WiFiFileSystem.ensureDirectories()
-            try data.write(to: WiFiFileSystem.localDatabaseFile, options: .atomic)
 
-            // iCloud (nếu có)
-            if let icDB = WiFiFileSystem.iCloudDatabaseFile {
+            if allowLocalStorage {
+                try WiFiFileSystem.ensureDirectories()
+                try data.write(to: WiFiFileSystem.localDatabaseFile, options: .atomic)
+            }
+
+            if allowICloudStorage, let icDB = WiFiFileSystem.iCloudDatabaseFile {
                 try data.write(to: icDB, options: .atomic)
             }
         } catch {
@@ -79,18 +96,14 @@ final class WiFiStore: ObservableObject {
         }
     }
 
-    /// Khôi phục từ Wi-Fi/Database/wifi-database.json. Trả về true nếu đọc được.
+    /// Khôi phục từ Database/wifi-database.json (local). Trả về true nếu đọc được.
     @discardableResult
     private func restoreFromDisk() -> Bool {
         do {
             let url = WiFiFileSystem.localDatabaseFile
             guard FileManager.default.fileExists(atPath: url.path) else { return false }
             let data = try Data(contentsOf: url)
-            if let v2 = try? JSONDecoder().decode(ExportFileV2.self, from: data) {
-                self.items = v2.items; return true
-            }
-            // fallback sang mảng thuần nếu là file rất cũ
-            self.items = try JSONDecoder().decode([WiFiNetwork].self, from: data)
+            try decodeAndAssign(data: data)
             return true
         } catch {
             print("Restore error:", error.localizedDescription)
@@ -110,7 +123,7 @@ final class WiFiStore: ObservableObject {
         }
     }
 
-    // MARK: - Export snapshots (Wi-Fi/Export)
+    // MARK: - Export snapshots (Export/)
 
     struct ExportFileV2: Codable {
         let schemaVersion: Int = 2
@@ -118,7 +131,6 @@ final class WiFiStore: ObservableObject {
         var items: [WiFiNetwork]
     }
 
-    /// Xuất snapshot hiện tại vào Wi-Fi/Export (local + iCloud nếu có). Trả về URL file local.
     @discardableResult
     func exportSnapshot() throws -> URL {
         let fileName = WiFiFileSystem.makeTimestampedExportFileName()
@@ -130,74 +142,60 @@ final class WiFiStore: ObservableObject {
         try WiFiFileSystem.ensureDirectories()
         try data.write(to: localURL, options: .atomic)
 
-        if let iCloudDir = WiFiFileSystem.iCloudExportDir {
+        if allowICloudStorage, let iCloudDir = WiFiFileSystem.iCloudExportDir {
             let icURL = iCloudDir.appendingPathComponent(fileName)
             try data.write(to: icURL, options: .atomic)
         }
         return localURL
     }
 
-    // MARK: - Import (.json / .js / .txt) with merge by BSSID
+    // MARK: - Import (.json / .js / .txt) with security-scoped URL + merge by BSSID
 
-    enum ImportError: Error {
-        case invalidEncoding
-        case invalidFormat
-        case empty
-    }
+    enum ImportError: Error { case invalidEncoding, invalidFormat, empty }
 
-    /// Nhập dữ liệu từ URL (chỉ merge theo BSSID).
+    /// Nhập dữ liệu từ URL được fileImporter trả về.
+    /// Chỉ merge THEO BSSID: ghi đè trùng BSSID, thêm BSSID mới, bỏ qua record không có BSSID.
     func importFrom(url: URL) throws {
-        let rawData = try Data(contentsOf: url)
-        let ext = url.pathExtension.lowercased()
+        // Truy cập security-scoped nếu là file ngoài sandbox
+        let needs = url.startAccessingSecurityScopedResource()
+        defer { if needs { url.stopAccessingSecurityScopedResource() } }
 
-        // Nếu là .js / .txt: cố tách JSON thuần từ nội dung text
-        let dataForDecode: Data
-        if ["js", "txt"].contains(ext) {
-            guard let text = String(data: rawData, encoding: .utf8) else {
-                throw ImportError.invalidEncoding
-            }
-            let json = Self.extractJSON(from: text)
-            guard let jsonData = json.data(using: .utf8) else {
-                throw ImportError.invalidEncoding
-            }
-            dataForDecode = jsonData
-        } else {
-            dataForDecode = rawData
+        var readErr: NSError?
+        var data = Data()
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &readErr) { newURL in
+            data = (try? Data(contentsOf: newURL)) ?? Data()
         }
+        if let e = readErr { throw e }
+        guard !data.isEmpty else { throw ImportError.empty }
 
-        // Thử decode theo 2 schema
-        let decoder = JSONDecoder()
-        var imported: [WiFiNetwork]? = nil
-
-        if let v2 = try? decoder.decode(ExportFileV2.self, from: dataForDecode) {
-            imported = v2.items
-        } else if let wrap = try? decoder.decode(WrapperAny.self, from: dataForDecode) {
-            imported = wrap.items
-        } else if let arr = try? decoder.decode([WiFiNetwork].self, from: dataForDecode) {
-            imported = arr
-        }
-
-        guard let list = imported, !list.isEmpty else { throw ImportError.empty }
-
-        mergeByBSSID(list)
+        try decodeAndMerge(data: data)
         sortInPlace()
     }
+
+    // MARK: - Decode helpers
 
     /// Wrapper "mềm" chỉ cần có trường items
     private struct WrapperAny: Codable { let items: [WiFiNetwork] }
 
-    /// Hỗ trợ tách JSON từ text có thể chứa JS wrapper.
-    /// Ưu tiên tìm `[...]`, nếu không có sẽ thử `{...}`.
-    private static func extractJSON(from text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let first = trimmed.first, first == "[" || first == "{" { return trimmed }
-        if let s = trimmed.firstIndex(of: "["), let e = trimmed.lastIndex(of: "]"), s < e {
-            return String(trimmed[s...e])
+    private func decodeAndAssign(data: Data) throws {
+        let dec = JSONDecoder()
+        if let v2 = try? dec.decode(ExportFileV2.self, from: data) { self.items = v2.items; return }
+        if let wrap = try? dec.decode(WrapperAny.self, from: data) { self.items = wrap.items; return }
+        self.items = try dec.decode([WiFiNetwork].self, from: data)
+    }
+
+    private func decodeAndMerge(data: Data) throws {
+        let dec = JSONDecoder()
+        var incoming: [WiFiNetwork]? = nil
+        if let v2 = try? dec.decode(ExportFileV2.self, from: data) {
+            incoming = v2.items
+        } else if let wrap = try? dec.decode(WrapperAny.self, from: data) {
+            incoming = wrap.items
+        } else if let arr = try? dec.decode([WiFiNetwork].self, from: data) {
+            incoming = arr
         }
-        if let s = trimmed.firstIndex(of: "{"), let e = trimmed.lastIndex(of: "}"), s < e {
-            return String(trimmed[s...e])
-        }
-        return trimmed
+        guard let list = incoming, !list.isEmpty else { throw ImportError.empty }
+        mergeByBSSID(list)
     }
 
     /// Merge nhập theo BSSID (ghi đè trùng BSSID, thêm BSSID mới, bỏ qua record không có BSSID)
@@ -210,12 +208,9 @@ final class WiFiStore: ObservableObject {
         }
 
         for var nw in incoming {
-            guard let bss = nw.bssid?.lowercased(), !bss.isEmpty else {
-                // chỉ xét theo BSSID như yêu cầu import
-                continue
-            }
+            guard let bss = nw.bssid?.lowercased(), !bss.isEmpty else { continue }
             if let idx = indexByBSSID[bss] {
-                // Ghi đè: giữ id cũ để ổn định UI
+                // Ghi đè: giữ id cũ
                 nw.id = items[idx].id
                 items[idx] = nw
             } else {

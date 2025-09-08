@@ -1,83 +1,70 @@
 import Foundation
 
-/// Quản lý cây thư mục:
-///   Documents/Wi-Fi/{Database, Export}
-/// và bản sao trên iCloud (nếu iCloud Drive khả dụng).
+/// Quản lý cây thư mục của app trong Files (Documents) và iCloud Drive.
+/// KHÔNG lót thêm "Wi-Fi" lần nữa để tránh lặp.
 enum WiFiFileSystem {
-    // Tên thư mục / file
-    static let rootFolderName = "Wi-Fi"
-    static let exportFolderName = "Export"
-    static let databaseFolderName = "Database"
-    static let databaseFileName = "wifi-database.json"
-
-    // MARK: - Local (On My iPhone)
-
-    static var localRoot: URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return docs.appendingPathComponent(rootFolderName, isDirectory: true)
+    // App Documents (Files hiển thị là tên app: "Wi-Fi")
+    static var appDocuments: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
-    static var localExportDir: URL {
-        localRoot.appendingPathComponent(exportFolderName, isDirectory: true)
+    // Thư mục chuẩn cần có NGAY dưới thư mục app
+    static var localExportDir: URL   { appDocuments.appendingPathComponent("Export",   isDirectory: true) }
+    static var localDatabaseDir: URL { appDocuments.appendingPathComponent("Database", isDirectory: true) }
+    static var localDatabaseFile: URL { localDatabaseDir.appendingPathComponent("wifi-database.json") }
+
+    // iCloud (nếu bật iCloud Documents)
+    static var iCloudAppRoot: URL? {
+        guard let c = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
+        return c.appendingPathComponent("Documents", isDirectory: true)
     }
+    static var iCloudExportDir: URL?   { iCloudAppRoot?.appendingPathComponent("Export",   isDirectory: true) }
+    static var iCloudDatabaseDir: URL? { iCloudAppRoot?.appendingPathComponent("Database", isDirectory: true) }
+    static var iCloudDatabaseFile: URL? { iCloudDatabaseDir?.appendingPathComponent("wifi-database.json") }
 
-    static var localDatabaseDir: URL {
-        localRoot.appendingPathComponent(databaseFolderName, isDirectory: true)
-    }
-
-    static var localDatabaseFile: URL {
-        localDatabaseDir.appendingPathComponent(databaseFileName, isDirectory: false)
-    }
-
-    // MARK: - iCloud (Documents in iCloud Drive)
-
-    /// Trả về thư mục gốc iCloud/Documents/Wi-Fi nếu iCloud khả dụng
-    static var iCloudRoot: URL? {
-        guard let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
-        return container.appendingPathComponent("Documents", isDirectory: true)
-                        .appendingPathComponent(rootFolderName, isDirectory: true)
-    }
-
-    static var iCloudExportDir: URL? {
-        iCloudRoot?.appendingPathComponent(exportFolderName, isDirectory: true)
-    }
-
-    static var iCloudDatabaseDir: URL? {
-        iCloudRoot?.appendingPathComponent(databaseFolderName, isDirectory: true)
-    }
-
-    static var iCloudDatabaseFile: URL? {
-        iCloudDatabaseDir?.appendingPathComponent(databaseFileName, isDirectory: false)
-    }
-
-    // MARK: - Ensure
-
-    /// Tạo toàn bộ thư mục cần thiết (local + iCloud nếu có)
+    /// Tạo thư mục cần thiết (local + iCloud) và migrate khỏi thư mục lót cũ nếu có.
     static func ensureDirectories() {
-        createDir(localRoot)
-        createDir(localExportDir)
-        createDir(localDatabaseDir)
-        if let icRoot = iCloudRoot {
-            createDir(icRoot)
+        createDir(localExportDir); createDir(localDatabaseDir)
+        if let ic = iCloudAppRoot {
+            createDir(ic)
             if let d = iCloudDatabaseDir { createDir(d) }
-            if let e = iCloudExportDir { createDir(e) }
+            if let e = iCloudExportDir   { createDir(e) }
         }
+        migrateFromNestedIfNeeded()
     }
 
     private static func createDir(_ url: URL) {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: url.path) {
-            try? fm.createDirectory(at: url, withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
 
-    // MARK: - Helpers
+    /// Di chuyển nội dung từ Documents/"Wi-Fi" cũ ra thẳng Documents (fix lặp Wi-Fi/Wi-Fi)
+    private static func migrateFromNestedIfNeeded() {
+        let nested = appDocuments.appendingPathComponent("Wi-Fi", isDirectory: true)
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: nested.path, isDirectory: &isDir), isDir.boolValue else { return }
+
+        moveContents(of: nested.appendingPathComponent("Export"),   to: localExportDir)
+        moveContents(of: nested.appendingPathComponent("Database"), to: localDatabaseDir)
+        try? FileManager.default.removeItem(at: nested)
+    }
+
+    private static func moveContents(of src: URL, to dst: URL) {
+        createDir(dst)
+        if let names = try? FileManager.default.contentsOfDirectory(atPath: src.path) {
+            for name in names {
+                let s = src.appendingPathComponent(name)
+                let d = dst.appendingPathComponent(name)
+                if FileManager.default.fileExists(atPath: d.path) { try? FileManager.default.removeItem(at: d) }
+                try? FileManager.default.moveItem(at: s, to: d)
+            }
+        }
+    }
 
     /// Tên file export theo thời gian: wifi-YYYYMMDD-HHmmss.json
     static func makeTimestampedExportFileName(date: Date = .now) -> String {
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = "yyyyMMdd-HHmmss"
-        return "wifi-\(df.string(from: date)).json"
+        let f = DateFormatter(); f.locale = .init(identifier: "en_US_POSIX"); f.dateFormat = "yyyyMMdd-HHmmss"
+        return "wifi-\(f.string(from: date)).json"
     }
 }
