@@ -7,18 +7,16 @@ struct ContentView: View {
     @EnvironmentObject var theme: ThemeManager
 
     @State private var showingAdd = false
-    @State private var showingImporter = false
     @State private var searchText = ""
     @State private var confirmDelete: UUID?
     private let currentWiFi = CurrentWiFi()
+    private let firebase = FirebaseService()
 
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
-    @State private var importError: String?
-    @State private var addedToast = false   // toast “Đã thêm Wi-Fi”
-
-    // Import: chỉ .json theo yêu cầu
-    private let importerTypes: [UTType] = [.json]
+    @State private var errorMessage: String?
+    @State private var addedToast = false
+    @State private var syncing = false   // để disable nút khi đang chạy
 
     var body: some View {
         NavigationStack {
@@ -31,7 +29,6 @@ struct ContentView: View {
                             placement: .navigationBarDrawer(displayMode: .always),
                             prompt: "Search")
                 .onAppear { refreshSSID() }
-                // Hiện toast khi Wi-Fi mới được thêm
                 .onReceive(NotificationCenter.default.publisher(for: Notification.Name("wifiDidAdd"))) { _ in
                     addedToast = true
                 }
@@ -46,18 +43,11 @@ struct ContentView: View {
                     }
                 }
         }
-        .fileImporter(
-            isPresented: $showingImporter,
-            allowedContentTypes: importerTypes,
-            allowsMultipleSelection: false
-        ) { result in
-            handleImport(result)
-        }
-        .alert("Lỗi nhập dữ liệu", isPresented: Binding(get: { importError != nil },
-                                                       set: { _ in importError = nil })) {
+        .alert("Lỗi", isPresented: Binding(get: { errorMessage != nil },
+                                          set: { _ in errorMessage = nil })) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(importError ?? "")
+            Text(errorMessage ?? "")
         }
         .toast(isPresented: $addedToast, text: "Đã thêm Wi-Fi")
         .safeAreaInset(edge: .bottom) {
@@ -109,7 +99,6 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
-                        // PLUS ở MẠNG HIỆN TẠI: mở form có sẵn tên Wi-Fi hiện tại
                         presentForm(item: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
                     } else {
                         presentForm(item: newItem())
@@ -245,7 +234,7 @@ struct ContentView: View {
                     selectedIDs.removeAll()
                 }
             } else {
-                // PLUS TRÊN TOOLBAR: luôn mở form TRỐNG (placeholder “Tên mạng”)
+                // PLUS TRÊN TOOLBAR: luôn mở form TRỐNG
                 Button { presentForm(item: newItem()) } label: {
                     Image(systemName: "plus")
                 }
@@ -259,17 +248,51 @@ struct ContentView: View {
                     Button { performExport() } label: {
                         Label("Xuất dữ liệu", systemImage: "square.and.arrow.up")
                     }
-                    Button { showingImporter = true } label: {
-                        Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
-                    }
-                    // Cập nhật (reload DB từ file) nằm trong More
                     Button {
-                        store.reloadFromDisk()
+                        syncFromFirebase()
                     } label: {
                         Label("Đồng bộ", systemImage: "arrow.triangle.2.circlepath")
                     }
+                    Button {
+                        uploadToFirebase()
+                    } label: {
+                        Label("Sao lưu", systemImage: "icloud.and.arrow.up")
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
+                }
+                .disabled(syncing)
+            }
+        }
+    }
+
+    // MARK: - Firebase actions
+
+    private func syncFromFirebase() {
+        syncing = true
+        firebase.fetchNetworks { result in
+            DispatchQueue.main.async {
+                syncing = false
+                switch result {
+                case .success(let items):
+                    store.items = items
+                case .failure(let err):
+                    errorMessage = "Lỗi đồng bộ: \(err.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func uploadToFirebase() {
+        syncing = true
+        firebase.uploadNetworks(store.items) { result in
+            DispatchQueue.main.async {
+                syncing = false
+                switch result {
+                case .success:
+                    addedToast = true
+                case .failure(let err):
+                    errorMessage = "Lỗi sao lưu: \(err.localizedDescription)"
                 }
             }
         }
@@ -362,31 +385,13 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Export
-
     private func performExport() {
         do {
             let url = try store.exportSnapshot()
             let av = UIActivityViewController(activityItems: [url], applicationActivities: nil)
             UIApplication.presentTop(av)
         } catch {
-            importError = error.localizedDescription
-        }
-    }
-
-    // MARK: - Import
-
-    private func handleImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            do {
-                try store.importFrom(url: url)
-            } catch {
-                importError = error.localizedDescription
-            }
-        case .failure(let err):
-            importError = err.localizedDescription
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -413,7 +418,7 @@ private struct SecureDots: View {
         if text.isEmpty {
             Text("Không bảo mật").foregroundStyle(.secondary).font(.footnote)
         } else {
-            Text(String(repeating: "●", count: max(6, text.count)))
+            Text(String(repeating: "•", count: max(6, text.count)))
                 .foregroundStyle(.secondary).font(.footnote)
         }
     }

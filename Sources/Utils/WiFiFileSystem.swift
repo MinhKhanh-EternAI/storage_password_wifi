@@ -1,19 +1,28 @@
 import Foundation
 
 /// Quản lý cây thư mục của app trong Files (Documents) và iCloud Drive.
-/// KHÔNG lót thêm "Wi-Fi" lần nữa để tránh lặp.
+/// Đảm bảo không lặp "Wi-Fi/Wi-Fi".
 enum WiFiFileSystem {
-    // App Documents (Files hiển thị là tên app: "Wi-Fi")
+    // MARK: - App Documents
     static var appDocuments: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
-    // Thư mục chuẩn cần có NGAY dưới thư mục app
+    // Thư mục chuẩn dưới appDocuments
     static var localExportDir: URL   { appDocuments.appendingPathComponent("Export",   isDirectory: true) }
     static var localDatabaseDir: URL { appDocuments.appendingPathComponent("Database", isDirectory: true) }
     static var localDatabaseFile: URL { localDatabaseDir.appendingPathComponent("wifi-database.json") }
 
-    // iCloud (nếu bật iCloud Documents)
+    // MARK: - Tương thích code 2 (~/Documents/Wi-Fi)
+    static var legacyLocalDir: URL {
+        appDocuments.appendingPathComponent("Wi-Fi", isDirectory: true)
+    }
+
+    static var legacyLocalDatabaseFile: URL {
+        legacyLocalDir.appendingPathComponent("wifi-database.js", conformingTo: .data)
+    }
+
+    // MARK: - iCloud (nếu bật iCloud Documents)
     static var iCloudAppRoot: URL? {
         guard let c = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
         return c.appendingPathComponent("Documents", isDirectory: true)
@@ -22,14 +31,25 @@ enum WiFiFileSystem {
     static var iCloudDatabaseDir: URL? { iCloudAppRoot?.appendingPathComponent("Database", isDirectory: true) }
     static var iCloudDatabaseFile: URL? { iCloudDatabaseDir?.appendingPathComponent("wifi-database.json") }
 
+    // MARK: - Ensure Directories
     /// Tạo thư mục cần thiết (local + iCloud) và migrate khỏi thư mục lót cũ nếu có.
     static func ensureDirectories() {
-        createDir(localExportDir); createDir(localDatabaseDir)
+        createDir(localExportDir)
+        createDir(localDatabaseDir)
+
+        // iCloud
         if let ic = iCloudAppRoot {
             createDir(ic)
             if let d = iCloudDatabaseDir { createDir(d) }
             if let e = iCloudExportDir   { createDir(e) }
         }
+
+        // Thư mục legacy (~/Documents/Wi-Fi) từ code 2
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: legacyLocalDir.path) {
+            try? fm.createDirectory(at: legacyLocalDir, withIntermediateDirectories: true)
+        }
+
         migrateFromNestedIfNeeded()
     }
 
@@ -39,6 +59,7 @@ enum WiFiFileSystem {
         }
     }
 
+    // MARK: - Migration
     /// Di chuyển nội dung từ Documents/"Wi-Fi" cũ ra thẳng Documents (fix lặp Wi-Fi/Wi-Fi)
     private static func migrateFromNestedIfNeeded() {
         let nested = appDocuments.appendingPathComponent("Wi-Fi", isDirectory: true)
@@ -62,9 +83,12 @@ enum WiFiFileSystem {
         }
     }
 
+    // MARK: - Export Filename
     /// Tên file export theo thời gian: wifi-YYYYMMDD-HHmmss.json
     static func makeTimestampedExportFileName(date: Date = .now) -> String {
-        let f = DateFormatter(); f.locale = .init(identifier: "en_US_POSIX"); f.dateFormat = "yyyyMMdd-HHmmss"
+        let f = DateFormatter()
+        f.locale = .init(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd-HHmmss"
         return "wifi-\(f.string(from: date)).json"
     }
 }

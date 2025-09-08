@@ -70,6 +70,13 @@ final class WiFiStore: ObservableObject {
         sortInPlace()
     }
 
+    /// Thay toàn bộ danh sách (giữ lại cho trường hợp import toàn bộ)
+    func replaceAll(with newItems: [WiFiNetwork]) {
+        self.items = newItems
+        sortInPlace()
+        persistToDisk()
+    }
+
     func delete(_ id: UUID) {
         items.removeAll { $0.id == id }
     }
@@ -80,12 +87,19 @@ final class WiFiStore: ObservableObject {
 
     // MARK: - Persistence (File in Documents & iCloud)
 
+    struct ExportFileV2: Codable {
+        var schemaVersion: Int = 2
+        var exportedAt: Date = Date()
+        var items: [WiFiNetwork]
+    }
+
     private func persistToDisk() {
         do {
             let data = try JSONEncoder.iso.encode(ExportFileV2(items: items))
 
             if allowLocalStorage {
-                WiFiFileSystem.ensureDirectories() // <- KHÔNG dùng try (hết warning)
+                WiFiFileSystem.ensureDirectories()
+                // lưu JSON (có thể là .json hoặc .js, nhưng dùng url định nghĩa sẵn trong WiFiFileSystem)
                 try data.write(to: WiFiFileSystem.localDatabaseFile, options: .atomic)
             }
 
@@ -97,7 +111,7 @@ final class WiFiStore: ObservableObject {
         }
     }
 
-    /// Khôi phục từ Database/wifi-database.json (local). Trả về true nếu đọc được.
+    /// Khôi phục từ Database/wifi-database.json (hoặc .js nếu bạn config vậy). Trả về true nếu đọc được.
     @discardableResult
     private func restoreFromDisk() -> Bool {
         do {
@@ -126,12 +140,6 @@ final class WiFiStore: ObservableObject {
 
     // MARK: - Export snapshots (Export/)
 
-    struct ExportFileV2: Codable {
-        var schemaVersion: Int = 2   // <- var để hết cảnh báo decode
-        var exportedAt: Date = Date()
-        var items: [WiFiNetwork]
-    }
-
     @discardableResult
     func exportSnapshot() throws -> URL {
         let fileName = WiFiFileSystem.makeTimestampedExportFileName()
@@ -140,7 +148,7 @@ final class WiFiStore: ObservableObject {
         let payload = ExportFileV2(items: items)
         let data = try JSONEncoder.iso.encode(payload)
 
-        WiFiFileSystem.ensureDirectories() // <- KHÔNG dùng try
+        WiFiFileSystem.ensureDirectories()
         try data.write(to: localURL, options: .atomic)
 
         if allowICloudStorage, let iCloudDir = WiFiFileSystem.iCloudExportDir {
@@ -223,6 +231,7 @@ private extension JSONEncoder {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         enc.dateEncodingStrategy = .iso8601
-        return enc;
+        return enc
     }
 }
+    
