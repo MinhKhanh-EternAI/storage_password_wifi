@@ -24,9 +24,9 @@ let project = Project(
             ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
-                .package(product: "FirebaseCore"),
-                .package(product: "FirebaseFirestore"),
-                .package(product: "FirebaseAuth") // nếu dùng Auth
+                .package(product: "FirebaseCore", package: "firebase-ios-sdk"),
+                .package(product: "FirebaseFirestore", package: "firebase-ios-sdk"),
+                .package(product: "FirebaseAuth", package: "firebase-ios-sdk")
             ],
             settings: .settings(base: [
                 "SWIFT_VERSION": "5.0",

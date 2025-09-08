@@ -86,6 +86,14 @@ jobs:
             -workspace ./WiFiOffline.xcworkspace \
             -scheme WiFiOffline
 
+      - name: Debug SwiftPM Packages
+        run: |
+          set -euo pipefail
+          ls -R ~/Library/Caches/org.swift.swiftpm || true
+          xcodebuild -showBuildSettings \
+            -workspace ./WiFiOffline.xcworkspace \
+            -scheme WiFiOffline | grep -i firebase || true
+
       - name: Build unsigned .app
         shell: bash
         run: |
