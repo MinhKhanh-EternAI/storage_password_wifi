@@ -26,13 +26,14 @@ jobs:
           xcodebuild -version
           sw_vers
 
-      - name: Install Tuist
+      - name: Install Mise and Tuist
         run: |
           curl https://mise.jdx.dev/install.sh | sh
-          eval "$(/Users/runner/.local/bin/mise activate bash)"
+          eval "$(/Users/runner/.local/bin/mise activate bash)"   # Quan trọng!
           mise install tuist
           mise use tuist@latest
           tuist version
+
 
       - name: Normalize & validate Info.plist
         shell: bash
