@@ -15,8 +15,9 @@ struct ContentView: View {
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
     @State private var importError: String?
+    @State private var addedToast = false   // NEW: toast “Đã thêm Wi-Fi”
 
-    // Chỉ cho phép .json để tránh chọn nhầm định dạng
+    // Giữ nguyên: chỉ .json
     private let importerTypes: [UTType] = [.json]
 
     var body: some View {
@@ -30,6 +31,10 @@ struct ContentView: View {
                             placement: .navigationBarDrawer(displayMode: .always),
                             prompt: "Search")
                 .onAppear { refreshSSID() }
+                // Nghe sự kiện thêm mới để hiện toast
+                .onReceive(NotificationCenter.default.publisher(for: .wifiDidAdd)) { _ in
+                    addedToast = true
+                }
                 .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
                     confirmDelete != nil
                 }, set: { v in
@@ -54,13 +59,16 @@ struct ContentView: View {
         } message: {
             Text(importError ?? "")
         }
+        // NEW: toast thông báo đã thêm
+        .toast(isPresented: $addedToast, text: "Đã thêm Wi-Fi")
         .safeAreaInset(edge: .bottom) {
             if selecting {
                 Button(role: .destructive) {
                     deleteSelected()
                 } label: {
                     Text(selectedIDs.isEmpty ? "Xóa" : "Xóa (\(selectedIDs.count))")
-                        .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity)
+                    .fontWeight(.bold)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
@@ -103,9 +111,11 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
-                        pathToForm(with: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
+                        // Vẫn thêm theo “Mạng hiện tại”
+                        presentForm(item: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3),
+                                    prefillCurrentSSID: false) // không ép tự điền
                     } else {
-                        pathToForm(with: newItem())
+                        presentForm(item: newItem(), prefillCurrentSSID: false)
                     }
                 } label: {
                     Image(systemName: "plus").font(.title3)
@@ -148,14 +158,6 @@ struct ContentView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    // NÚT CẬP NHẬT — đọc lại DB từ file
-                    Button {
-                        store.reloadFromDisk()
-                    } label: {
-                        Label("Cập nhật", systemImage: "arrow.clockwise").font(.footnote)
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(selecting)
                 }
                 .padding(.top, 4)
             }
@@ -188,21 +190,12 @@ struct ContentView: View {
                 } header: {
                     VStack(alignment: .leading, spacing: 2) {
                         if index == 0 {
-                            // Header chính của "ĐÃ LƯU" kèm nút Cập nhật
                             HStack(spacing: 8) {
                                 savedStatusDot
                                 Text("ĐÃ LƯU")
                                     .textCase(.uppercase)
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
-                                Spacer()
-                                Button {
-                                    store.reloadFromDisk()
-                                } label: {
-                                    Label("Cập nhật", systemImage: "arrow.clockwise").font(.footnote)
-                                }
-                                .buttonStyle(.borderless)
-                                .disabled(selecting)
                             }
                             .padding(.top, 4)
                         }
@@ -224,6 +217,7 @@ struct ContentView: View {
                     selecting = false
                     selectedIDs.removeAll()
                 }
+                .fontWeight(.bold)
             } else {
                 Menu {
                     Picker("Giao diện", selection: $theme.mode) {
@@ -255,7 +249,10 @@ struct ContentView: View {
                     selectedIDs.removeAll()
                 }
             } else {
-                Button { pathToForm(with: newItem()) } label: {
+                // Dấu cộng trên cùng: mở form TRỐNG
+                Button {
+                    presentForm(item: newItem(), prefillCurrentSSID: false)
+                } label: {
                     Image(systemName: "plus")
                 }
                 Menu {
@@ -271,6 +268,12 @@ struct ContentView: View {
                     Button { showingImporter = true } label: {
                         Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
                     }
+                    // NEW: Cập nhật trong menu More (reload DB từ file)
+                    Button {
+                        store.reloadFromDisk()
+                    } label: {
+                        Label("Cập nhật", systemImage: "arrow.clockwise")
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -280,9 +283,11 @@ struct ContentView: View {
 
     // MARK: - Helpers
 
-    private func pathToForm(with item: WiFiNetwork) {
+    // mở form với flag prefillCurrentSSID để kiểm soát auto-fill
+    private func presentForm(item: WiFiNetwork, prefillCurrentSSID: Bool) {
         showingAdd = true
-        let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
+        let view = WiFiFormView(mode: .create, item: item, prefillCurrentSSID: prefillCurrentSSID)
+            .environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
         if let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
@@ -369,7 +374,7 @@ struct ContentView: View {
 
     private func performExport() {
         do {
-            let url = try store.exportSnapshot() // ghi vào Export/ và (nếu bật) iCloud
+            let url = try store.exportSnapshot()
             let av = UIActivityViewController(activityItems: [url], applicationActivities: nil)
             UIApplication.presentTop(av)
         } catch {
@@ -384,7 +389,7 @@ struct ContentView: View {
         case .success(let urls):
             guard let url = urls.first else { return }
             do {
-                try store.importFrom(url: url) // có security-scoped + merge theo BSSID
+                try store.importFrom(url: url)
             } catch {
                 importError = error.localizedDescription
             }

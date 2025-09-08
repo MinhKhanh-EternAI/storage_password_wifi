@@ -61,7 +61,9 @@ struct WiFiDetailView: View {
                 store.upsert(item)
                 savedToast = true
             } label: {
-                Text("Lưu thông tin").frame(maxWidth: .infinity)
+                Text("Lưu thông tin")
+                .fontWeight(.bold)
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
