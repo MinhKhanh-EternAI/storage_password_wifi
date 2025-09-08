@@ -23,15 +23,15 @@ let project = Project(
             ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
-                .package(product: "FirebaseCore"),
-                .package(product: "FirebaseFirestore"),
-                .package(product: "FirebaseAuth")
+                .package(product: "FirebaseCore", package: "firebase-ios-sdk"),
+                .package(product: "FirebaseFirestore", package: "firebase-ios-sdk"),
+                .package(product: "FirebaseAuth", package: "firebase-ios-sdk"),
             ],
             settings: .settings(base: [
                 "SWIFT_VERSION": "5.0",
                 "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
                 "INFOPLIST_FILE": "Info.plist",
-                "CODE_SIGNING_ALLOWED": "NO" // bỏ nếu muốn chạy trên thiết bị thật
+                "CODE_SIGNING_ALLOWED": "NO" // bỏ nếu build thật
             ])
         )
     ]
