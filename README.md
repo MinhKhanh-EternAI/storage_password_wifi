@@ -8,8 +8,8 @@
 - Tìm kiếm nhanh
 - Chia sẻ bằng QR Code
 - Xuất dữ liệu dạng JS
-- Đồng bộ từ Firebase về thiết bị (local)
-- Sao lưu dữ liệu từ thiết bị (local) lên Firebase
+- Đồng bộ từ Firebase về thiết bị
+- Sao lưu dữ liệu từ thiết bị lên Firebase
 
 ## 🛠 Cài đặt (không cần macOS - yêu cầu phải có chứng chỉ)
 1. Tải file IPA của ứng dụng.
