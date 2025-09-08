@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "WiFiOffline",
     packages: [
-        .package(url: "https://github.com/firebase/firebase-ios-sdk", from: "12.2.0")
+        .remote(url: "https://github.com/firebase/firebase-ios-sdk", requirement: .upToNextMajor(from: "12.2.0"))
     ],
     targets: [
         .target(
@@ -14,11 +14,14 @@ let project = Project(
             deploymentTargets: .iOS("16.0"),
             infoPlist: .file(path: "Info.plist"),
             sources: ["Sources/**"],
-            resources: ["Assets.xcassets/**", "README.md"],
+            resources: [
+                .glob(pattern: "Assets.xcassets/**"),
+                .glob(pattern: "README.md")
+            ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
-                .external(name: "FirebaseCore"),
-                .external(name: "FirebaseFirestore"),
+                .package(product: "FirebaseCore"),
+                .package(product: "FirebaseFirestore")
             ],
             settings: .settings(base: [
                 "SWIFT_VERSION": "5.0",
