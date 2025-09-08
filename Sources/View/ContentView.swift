@@ -21,6 +21,12 @@ struct ContentView: View {
     // 🔥 State cho animation refresh
     @State private var isRefreshing = false
 
+    // 🔥 State cho alert kết quả
+    @State private var showResultMessage = false
+    @State private var resultTitle = ""
+    @State private var resultSubtitle = ""
+    @State private var isError = false
+
     var body: some View {
         NavigationStack {
             listContent
@@ -46,11 +52,10 @@ struct ContentView: View {
                     }
                 }
         }
-        .alert("Lỗi", isPresented: Binding(get: { errorMessage != nil },
-                                          set: { _ in errorMessage = nil })) {
+        .alert(resultTitle, isPresented: $showResultMessage) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "")
+            Text(resultSubtitle).font(.footnote)
         }
         .toast(isPresented: $addedToast, text: "Đã thêm Wi-Fi")
         .safeAreaInset(edge: .bottom) {
@@ -133,10 +138,13 @@ struct ContentView: View {
                         }
                     }
                 } label: {
-                    Label("Làm mới", systemImage: "arrow.clockwise")
-                        .font(.footnote)
-                        .scaleEffect(isRefreshing ? 0.8 : 1.0) // chữ nhỏ lại
-                        .rotationEffect(.degrees(isRefreshing ? 360 : 0)) // icon xoay
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                            .rotationEffect(.degrees(isRefreshing ? 360 : 0)) // chỉ xoay icon
+                        Text("Làm mới")
+                            .font(.footnote)
+                            .scaleEffect(isRefreshing ? 0.8 : 1.0) // chỉ scale chữ
+                    }
                 }
                 .buttonStyle(.borderless)
                 .disabled(selecting)
@@ -249,7 +257,6 @@ struct ContentView: View {
                     selectedIDs.removeAll()
                 }
             } else {
-                // PLUS TRÊN TOOLBAR: luôn mở form TRỐNG
                 Button { presentForm(item: newItem()) } label: {
                     Image(systemName: "plus")
                 }
@@ -291,8 +298,9 @@ struct ContentView: View {
                 switch result {
                 case .success(let items):
                     store.items = items
+                    showBackupResult(success: true, isSync: true, count: items.count)
                 case .failure(let err):
-                    errorMessage = "Lỗi đồng bộ: \(err.localizedDescription)"
+                    showBackupResult(success: false, isSync: true, count: 0, error: err.localizedDescription)
                 }
             }
         }
@@ -305,12 +313,25 @@ struct ContentView: View {
                 syncing = false
                 switch result {
                 case .success:
-                    addedToast = true
+                    showBackupResult(success: true, isSync: false, count: store.items.count)
                 case .failure(let err):
-                    errorMessage = "Lỗi sao lưu: \(err.localizedDescription)"
+                    showBackupResult(success: false, isSync: false, count: 0, error: err.localizedDescription)
                 }
             }
         }
+    }
+
+    private func showBackupResult(success: Bool, isSync: Bool, count: Int, error: String? = nil) {
+        if success {
+            resultTitle = isSync ? "Đồng bộ thành công!" : "Sao lưu thành công!"
+            resultSubtitle = "📶 WiFi: \(count)"
+            isError = false
+        } else {
+            resultTitle = "Lỗi"
+            resultSubtitle = error ?? "Có lỗi xảy ra"
+            isError = true
+        }
+        showResultMessage = true
     }
 
     // MARK: - Helpers
