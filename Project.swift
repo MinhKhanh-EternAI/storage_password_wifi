@@ -5,8 +5,7 @@ let project = Project(
     packages: [
         .remote(
             url: "https://github.com/firebase/firebase-ios-sdk.git",
-            requirement: .upToNextMajor(from: "12.0.0"),
-            productTypes: [:] // giữ mặc định
+            requirement: .upToNextMajor(from: "12.0.0")
         )
     ],
     targets: [
@@ -24,17 +23,16 @@ let project = Project(
             ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
-                .package(product: "FirebaseCore", package: "firebase-ios-sdk"),
-                .package(product: "FirebaseFirestore", package: "firebase-ios-sdk"),
-                .package(product: "FirebaseAuth", package: "firebase-ios-sdk"),
+                .package(product: "FirebaseCore"),
+                .package(product: "FirebaseFirestore"),
+                .package(product: "FirebaseAuth"),
             ],
             settings: .settings(base: [
                 "SWIFT_VERSION": "5.0",
                 "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
                 "INFOPLIST_FILE": "Info.plist",
-                "CODE_SIGNING_ALLOWED": "NO"
+                "CODE_SIGNING_ALLOWED": "NO" // để build unsigned IPA
             ])
         )
     ]
 )
-
