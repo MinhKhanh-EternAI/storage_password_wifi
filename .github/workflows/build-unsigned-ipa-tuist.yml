@@ -28,7 +28,9 @@ jobs:
 
       - name: Install Tuist
         run: |
-          curl -Ls https://install.tuist.io | bash
+          curl https://mise.jdx.dev/install.sh | sh
+          mise install tuist
+          mise use tuist@latest
           tuist version
 
       - name: Normalize & validate Info.plist
