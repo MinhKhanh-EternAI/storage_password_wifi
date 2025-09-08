@@ -133,23 +133,15 @@ struct WiFiFormView: View {
         // Khi Lưu: nếu mật khẩu rỗng -> set bảo mật = Không có
         if (item.password ?? "").isEmpty { item.security = .none }
 
-        // NEW: nếu đang thêm mới và SSID khớp “mạng hiện tại” -> lưu BSSID ẩn
+        // Nếu đang thêm mới và SSID khớp “mạng hiện tại” -> lưu BSSID ẩn
         if mode == .create,
            !capturedSSIDFromCurrent.isEmpty,
            item.ssid == capturedSSIDFromCurrent {
             item.bssid = capturedBSSID
         }
 
-        switch mode {
-        case .create:
-            store.items.append(item)
-            store.sortInPlace()
-        case .edit:
-            if let i = store.items.firstIndex(where: { $0.id == item.id }) {
-                store.items[i] = item
-                store.sortInPlace()
-            }
-        }
+        // DÙ create hay edit, luôn dùng upsert để xử lý trùng BSSID
+        store.upsert(item)
         dismiss()
     }
 }

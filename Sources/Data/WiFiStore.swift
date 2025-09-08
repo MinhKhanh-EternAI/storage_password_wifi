@@ -28,11 +28,24 @@ final class WiFiStore: ObservableObject {
 
     // MARK: - CRUD
 
+    /// Ghi đè theo BSSID nếu có (case-insensitive); nếu không có BSSID thì upsert theo id.
     func upsert(_ item: WiFiNetwork) {
+        var newItem = item
+
+        if let bssid = item.bssid?.lowercased(), !bssid.isEmpty {
+            if let idx = items.firstIndex(where: { $0.bssid?.lowercased() == bssid }) {
+                // Overwrite record trùng BSSID, giữ nguyên id cũ để ổn định UI
+                newItem.id = items[idx].id
+                items[idx] = newItem
+                sortInPlace()
+                return
+            }
+        }
+
         if let idx = items.firstIndex(where: { $0.id == item.id }) {
-            items[idx] = item
+            items[idx] = newItem
         } else {
-            items.append(item)
+            items.append(newItem)
         }
         sortInPlace()
     }
@@ -132,10 +145,7 @@ final class WiFiStore: ObservableObject {
         case empty
     }
 
-    /// Nhập dữ liệu từ URL (cho phép .json, .js, .txt).
-    /// Format chấp nhận:
-    ///   1) `[WiFiNetwork]`
-    ///   2) `{ "items": [WiFiNetwork], ... }`
+    /// Nhập dữ liệu từ URL (chỉ merge theo BSSID).
     func importFrom(url: URL) throws {
         let rawData = try Data(contentsOf: url)
         let ext = url.pathExtension.lowercased()
@@ -190,10 +200,7 @@ final class WiFiStore: ObservableObject {
         return trimmed
     }
 
-    /// Merge dựa trên BSSID:
-    /// - Nếu incoming có `bssid` (không rỗng) và trùng `bssid` của một bản ghi hiện có -> GHI ĐÈ (giữ nguyên id cũ).
-    /// - Nếu incoming có `bssid` mới -> THÊM mới.
-    /// - Nếu incoming không có `bssid` -> KHÔNG tác động (đúng theo yêu cầu: chỉ xét theo BSSID).
+    /// Merge nhập theo BSSID (ghi đè trùng BSSID, thêm BSSID mới, bỏ qua record không có BSSID)
     private func mergeByBSSID(_ incoming: [WiFiNetwork]) {
         var indexByBSSID: [String: Int] = [:]
         for (i, it) in items.enumerated() {
@@ -204,7 +211,7 @@ final class WiFiStore: ObservableObject {
 
         for var nw in incoming {
             guard let bss = nw.bssid?.lowercased(), !bss.isEmpty else {
-                // yêu cầu: bỏ qua record không có BSSID
+                // chỉ xét theo BSSID như yêu cầu import
                 continue
             }
             if let idx = indexByBSSID[bss] {
