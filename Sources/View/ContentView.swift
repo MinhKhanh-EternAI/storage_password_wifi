@@ -21,14 +21,14 @@ struct ContentView: View {
     // 🔥 State cho animation refresh
     @State private var isRefreshing = false
 
-    // 🔥 State cho alert kết quả
-    @State private var showResultMessage = false
-    @State private var resultTitle = ""
-    @State private var resultSubtitle = ""
-    @State private var isError = false
-
-    // 🔥 State cho alert xác nhận sao lưu
+    // 🔥 State cho cảnh báo xác nhận sao lưu
     @State private var showBackupConfirm = false
+
+    // 🔥 State cho banner thông báo kết quả
+    @State private var showBanner = false
+    @State private var lastBackupSuccess = false
+    @State private var lastBackupCount = 0
+    @State private var lastBackupMessage: String? = nil
 
     var body: some View {
         NavigationStack {
@@ -55,20 +55,14 @@ struct ContentView: View {
                     }
                 }
         }
-        // Alert kết quả Firebase
-        .alert(resultTitle, isPresented: $showResultMessage) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(resultSubtitle).font(.footnote)
-        }
-        // Alert xác nhận Sao lưu
-        .alert("⚠️ Cảnh báo", isPresented: $showBackupConfirm) {
+        // ⚠️ Alert xác nhận Sao lưu
+        .alert("⚠️ Cảnh báo ⚠️", isPresented: $showBackupConfirm) {
             Button("Hủy", role: .cancel) {}
             Button("Sao lưu", role: .destructive) {
                 uploadToFirebase()
             }
         } message: {
-            Text("Bạn có chắc chắn muốn sao lưu dữ liệu không?\nQuá trình này có thể ghi đè và mất dữ liệu cũ.")
+            Text("Quá trình này có thể ghi đè dữ liệu cũ.\nTiếp tục?")
         }
         .toast(isPresented: $addedToast, text: "Đã thêm Wi-Fi")
         .safeAreaInset(edge: .bottom) {
@@ -85,6 +79,20 @@ struct ContentView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(.ultraThinMaterial)
+            }
+        }
+        // 🔥 Overlay Banner
+        .overlay(alignment: .top) {
+            if showBanner {
+                BannerView(success: lastBackupSuccess,
+                           count: lastBackupCount,
+                           message: lastBackupMessage)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        withAnimation { showBanner = false }
+                    }
+                }
             }
         }
     }
@@ -140,12 +148,12 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                    withAnimation(.spring(response: 0.1, dampingFraction: 0.5)) {
                         isRefreshing = true
                     }
                     refreshSSID()
                     // ✅ reset sau 0.3s
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                             isRefreshing = false
                         }
@@ -231,7 +239,6 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var topToolbar: some ToolbarContent {
-        // Trái
         ToolbarItem(placement: .topBarLeading) {
             if selecting {
                 Button("Xong") {
@@ -253,7 +260,6 @@ struct ContentView: View {
             }
         }
 
-        // Giữa
         ToolbarItem(placement: .principal) {
             Text("Wi-Fi")
                 .font(.system(size: 18, weight: .bold))
@@ -261,7 +267,6 @@ struct ContentView: View {
                 .minimumScaleFactor(0.8)
         }
 
-        // Phải
         ToolbarItemGroup(placement: .topBarTrailing) {
             if selecting {
                 Button("Hủy") {
@@ -288,7 +293,6 @@ struct ContentView: View {
                         Label("Đồng bộ", systemImage: "arrow.triangle.2.circlepath")
                     }
                     Button {
-                        // Thay vì gọi trực tiếp uploadToFirebase
                         showBackupConfirm = true
                     } label: {
                         Label("Sao lưu", systemImage: "icloud.and.arrow.up")
@@ -311,9 +315,9 @@ struct ContentView: View {
                 switch result {
                 case .success(let items):
                     store.items = items
-                    showBackupResult(success: true, isSync: true, count: items.count)
+                    showBannerResult(success: true, isSync: true, count: items.count)
                 case .failure(let err):
-                    showBackupResult(success: false, isSync: true, count: 0, error: err.localizedDescription)
+                    showBannerResult(success: false, isSync: true, count: 0, error: err.localizedDescription)
                 }
             }
         }
@@ -326,25 +330,23 @@ struct ContentView: View {
                 syncing = false
                 switch result {
                 case .success:
-                    showBackupResult(success: true, isSync: false, count: store.items.count)
+                    showBannerResult(success: true, isSync: false, count: store.items.count)
                 case .failure(let err):
-                    showBackupResult(success: false, isSync: false, count: 0, error: err.localizedDescription)
+                    showBannerResult(success: false, isSync: false, count: 0, error: err.localizedDescription)
                 }
             }
         }
     }
 
-    private func showBackupResult(success: Bool, isSync: Bool, count: Int, error: String? = nil) {
-        if success {
-            resultTitle = isSync ? "Đồng bộ thành công!" : "Sao lưu thành công!"
-            resultSubtitle = "📶 WiFi: \(count)"
-            isError = false
-        } else {
-            resultTitle = "Lỗi"
-            resultSubtitle = error ?? "Có lỗi xảy ra"
-            isError = true
+    private func showBannerResult(success: Bool, isSync: Bool, count: Int, error: String? = nil) {
+        lastBackupSuccess = success
+        lastBackupCount = count
+        lastBackupMessage = success
+            ? (isSync ? "Đã đồng bộ: \(count) Wi-Fi" : "Đã sao lưu: \(count) Wi-Fi")
+            : (error ?? "Có lỗi xảy ra")
+        withAnimation {
+            showBanner = true
         }
-        showResultMessage = true
     }
 
     // MARK: - Helpers
