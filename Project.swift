@@ -3,8 +3,10 @@ import ProjectDescription
 let project = Project(
     name: "WiFiOffline",
     packages: [
-        // thêm đuôi .git để SwiftPM tải được repo Firebase
-        .remote(url: "https://github.com/firebase/firebase-ios-sdk.git", requirement: .upToNextMajor(from: "10.29.0"))
+        .remote(
+            url: "https://github.com/firebase/firebase-ios-sdk.git",
+            requirement: .upToNextMajor(from: "10.29.0")
+        )
     ],
     targets: [
         .target(
@@ -22,9 +24,9 @@ let project = Project(
             ],
             entitlements: .file(path: "WiFiOffline.entitlements"),
             dependencies: [
-                // Firebase dependencies
-                .package(product: "FirebaseCore"),
-                .package(product: "FirebaseFirestore")
+                .external(name: "FirebaseCore"),
+                .external(name: "FirebaseFirestore"),
+                .external(name: "FirebaseAuth") // thêm nếu dùng
             ],
             settings: .settings(base: [
                 "SWIFT_VERSION": "5.0",
