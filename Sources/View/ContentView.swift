@@ -15,9 +15,9 @@ struct ContentView: View {
     @State private var selecting = false
     @State private var selectedIDs = Set<UUID>()
     @State private var importError: String?
-    @State private var addedToast = false   // NEW: toast “Đã thêm Wi-Fi”
+    @State private var addedToast = false   // toast “Đã thêm Wi-Fi”
 
-    // Giữ nguyên: chỉ .json
+    // Import: chỉ .json theo yêu cầu
     private let importerTypes: [UTType] = [.json]
 
     var body: some View {
@@ -31,7 +31,7 @@ struct ContentView: View {
                             placement: .navigationBarDrawer(displayMode: .always),
                             prompt: "Search")
                 .onAppear { refreshSSID() }
-                // Nghe sự kiện thêm mới để hiện toast
+                // Hiện toast khi Wi-Fi mới được thêm
                 .onReceive(NotificationCenter.default.publisher(for: .wifiDidAdd)) { _ in
                     addedToast = true
                 }
@@ -59,7 +59,6 @@ struct ContentView: View {
         } message: {
             Text(importError ?? "")
         }
-        // NEW: toast thông báo đã thêm
         .toast(isPresented: $addedToast, text: "Đã thêm Wi-Fi")
         .safeAreaInset(edge: .bottom) {
             if selecting {
@@ -67,8 +66,8 @@ struct ContentView: View {
                     deleteSelected()
                 } label: {
                     Text(selectedIDs.isEmpty ? "Xóa" : "Xóa (\(selectedIDs.count))")
-                    .frame(maxWidth: .infinity)
                     .fontWeight(.bold)
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
@@ -111,11 +110,10 @@ struct ContentView: View {
                 Button {
                     if let ssid = store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !ssid.isEmpty {
-                        // Vẫn thêm theo “Mạng hiện tại”
-                        presentForm(item: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3),
-                                    prefillCurrentSSID: false) // không ép tự điền
+                        // form với SSID hiện tại
+                        presentForm(item: WiFiNetwork(ssid: ssid, password: nil, security: .wpa2wpa3))
                     } else {
-                        presentForm(item: newItem(), prefillCurrentSSID: false)
+                        presentForm(item: newItem())
                     }
                 } label: {
                     Image(systemName: "plus").font(.title3)
@@ -249,10 +247,8 @@ struct ContentView: View {
                     selectedIDs.removeAll()
                 }
             } else {
-                // Dấu cộng trên cùng: mở form TRỐNG
-                Button {
-                    presentForm(item: newItem(), prefillCurrentSSID: false)
-                } label: {
+                // “+” trên cùng: form TRỐNG (placeholder “Tên mạng”)
+                Button { presentForm(item: newItem()) } label: {
                     Image(systemName: "plus")
                 }
                 Menu {
@@ -268,7 +264,7 @@ struct ContentView: View {
                     Button { showingImporter = true } label: {
                         Label("Nhập dữ liệu", systemImage: "tray.and.arrow.down")
                     }
-                    // NEW: Cập nhật trong menu More (reload DB từ file)
+                    // Cập nhật (reload DB từ file) nằm trong More
                     Button {
                         store.reloadFromDisk()
                     } label: {
@@ -283,11 +279,9 @@ struct ContentView: View {
 
     // MARK: - Helpers
 
-    // mở form với flag prefillCurrentSSID để kiểm soát auto-fill
-    private func presentForm(item: WiFiNetwork, prefillCurrentSSID: Bool) {
+    private func presentForm(item: WiFiNetwork) {
         showingAdd = true
-        let view = WiFiFormView(mode: .create, item: item, prefillCurrentSSID: prefillCurrentSSID)
-            .environmentObject(store)
+        let view = WiFiFormView(mode: .create, item: item).environmentObject(store)
         let hosting = UIHostingController(rootView: NavigationStack { view })
         if let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
