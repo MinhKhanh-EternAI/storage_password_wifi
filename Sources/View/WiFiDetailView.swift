@@ -91,6 +91,21 @@ struct WiFiDetailView: View {
             }
             .padding(.vertical, 2)
 
+            // NEW: BSSID (chỉ hiển thị nếu có)
+            if let b = item.bssid, !b.isEmpty {
+                HStack(spacing: 12) {
+                    Text("BSSID")
+                        .foregroundColor(.primary)
+                        .frame(width: labelWidth, alignment: .leading)
+
+                    Text(b)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 2)
+                }
+                .padding(.vertical, 2)
+            }
+
             // MẬT KHẨU — TextField chỉnh sửa như soạn text + icon copy bên phải
             HStack(spacing: 12) {
                 Text("Mật khẩu")
@@ -105,20 +120,18 @@ struct WiFiDetailView: View {
                         .textContentType(.password)
                         .keyboardType(.asciiCapable)
                         .lineLimit(1)
-                        .truncationMode(.tail)      // hiển thị 1 dòng, dài thì "…"
+                        .truncationMode(.tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 2)
-                        .padding(.trailing, 36)    // chừa chỗ cho icon
+                        .padding(.trailing, 36)
                         .submitLabel(.done)
                         .onSubmit { hideKeyboard() }
-                        // CHẶN khoảng trắng ngay khi gõ
                         .onChange(of: pwDraft) { newVal in
                             let cleaned = newVal.filter { !$0.isWhitespace }
-                            if cleaned != newVal { pwDraft = cleaned }   // loại space tức thời
+                            if cleaned != newVal { pwDraft = cleaned }
                             item.password = cleaned.isEmpty ? nil : cleaned
                         }
 
-                    // Icon copy (không bị chữ đè lên)
                     Button {
                         let pwd = item.password ?? ""
                         if !pwd.isEmpty {

@@ -24,7 +24,7 @@ struct ContentView: View {
         if let mjs  = UTType(filenameExtension: "mjs")  { types.append(mjs) }
         if let cjs  = UTType(filenameExtension: "cjs")  { types.append(cjs) }
         if let txt  = UTType(filenameExtension: "txt")  { types.append(txt) }
-        types.append(.data) // ✅ không cần if-let
+        types.append(.data) // Không cần if-let
         return types
     }()
 
@@ -35,7 +35,7 @@ struct ContentView: View {
                 .listSectionSpacingCompat(4)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { topToolbar }
-                // ✓ Search luôn cố định khi cuộn
+                // Search luôn cố định khi cuộn
                 .searchable(text: $searchText,
                             placement: .navigationBarDrawer(displayMode: .always),
                             prompt: "Search")

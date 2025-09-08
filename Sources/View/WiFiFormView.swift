@@ -12,6 +12,11 @@ struct WiFiFormView: View {
     // soạn thảo mật khẩu (chặn space khi gõ)
     @State private var pwDraft: String = ""
 
+    // NEW: BSSID ẩn bắt từ "mạng hiện tại"
+    private let currentWiFi = CurrentWiFi()
+    @State private var capturedSSIDFromCurrent: String = ""
+    @State private var capturedBSSID: String? = nil
+
     var body: some View {
         Form {
             // THÔNG TIN
@@ -81,7 +86,19 @@ struct WiFiFormView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .onAppear { pwDraft = item.password ?? "" }
+        .onAppear {
+            pwDraft = item.password ?? ""
+
+            // Chỉ auto-bắt BSSID khi thêm mới (mode.create). UI không hiển thị trường này.
+            if mode == .create {
+                currentWiFi.fetchCurrent { ssid, bssid in
+                    capturedSSIDFromCurrent = ssid ?? ""
+                    capturedBSSID = bssid
+                    // Nếu form chưa có SSID, tự điền SSID hiện tại để user đỡ gõ
+                    if item.ssid.isEmpty, let s = ssid { item.ssid = s }
+                }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -115,6 +132,13 @@ struct WiFiFormView: View {
         }
         // Khi Lưu: nếu mật khẩu rỗng -> set bảo mật = Không có
         if (item.password ?? "").isEmpty { item.security = .none }
+
+        // NEW: nếu đang thêm mới và SSID khớp “mạng hiện tại” -> lưu BSSID ẩn
+        if mode == .create,
+           !capturedSSIDFromCurrent.isEmpty,
+           item.ssid == capturedSSIDFromCurrent {
+            item.bssid = capturedBSSID
+        }
 
         switch mode {
         case .create:
