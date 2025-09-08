@@ -2,8 +2,14 @@ name: "CI - Xcode/Tuist unsigned IPA pipeline"
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['**']       # chạy trên mọi nhánh
+  pull_request:
+    branches: ['**']       # chạy khi mở PR từ bất kỳ nhánh nào
   workflow_dispatch:
+
+concurrency:
+  group: ci-xcode-tuist-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -12,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Show Xcode / macOS
         run: |
