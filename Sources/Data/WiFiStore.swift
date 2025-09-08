@@ -24,7 +24,6 @@ final class WiFiStore: ObservableObject {
 
     init() {
         WiFiFileSystem.ensureDirectories()
-        // Khôi phục từ file, nếu không có thì migrate từ UserDefaults
         if !restoreFromDisk() {
             restoreFromUserDefaultsAndWriteToDisk()
         }
@@ -43,6 +42,15 @@ final class WiFiStore: ObservableObject {
         allowICloudStorage = on
         UserDefaults.standard.set(on, forKey: "allowICloudStorage")
         persistToDisk()
+    }
+
+    // MARK: - Public reload (cho nút "Cập nhật")
+
+    /// Đọc lại database từ file (Documents/Database/wifi-database.json).
+    func reloadFromDisk() {
+        _ = restoreFromDisk()
+        sortInPlace()
+        objectWillChange.send()
     }
 
     // MARK: - CRUD
@@ -153,10 +161,7 @@ final class WiFiStore: ObservableObject {
 
     enum ImportError: Error { case invalidEncoding, invalidFormat, empty }
 
-    /// Nhập dữ liệu từ URL được fileImporter trả về.
-    /// Chỉ merge THEO BSSID: ghi đè trùng BSSID, thêm BSSID mới, bỏ qua record không có BSSID.
     func importFrom(url: URL) throws {
-        // Truy cập security-scoped nếu là file ngoài sandbox
         let needs = url.startAccessingSecurityScopedResource()
         defer { if needs { url.stopAccessingSecurityScopedResource() } }
 
@@ -174,7 +179,6 @@ final class WiFiStore: ObservableObject {
 
     // MARK: - Decode helpers
 
-    /// Wrapper "mềm" chỉ cần có trường items
     private struct WrapperAny: Codable { let items: [WiFiNetwork] }
 
     private func decodeAndAssign(data: Data) throws {

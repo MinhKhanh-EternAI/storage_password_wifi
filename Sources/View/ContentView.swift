@@ -16,16 +16,8 @@ struct ContentView: View {
     @State private var selectedIDs = Set<UUID>()
     @State private var importError: String?
 
-    // CHO PHÉP: .json + .js/.mjs/.cjs/.txt + fallback .data (để chọn được file export dạng JS)
-    private let importerTypes: [UTType] = {
-        var ts: [UTType] = [.json]
-        if let js  = UTType(filenameExtension: "js")  { ts.append(js)  }
-        if let mjs = UTType(filenameExtension: "mjs") { ts.append(mjs) }
-        if let cjs = UTType(filenameExtension: "cjs") { ts.append(cjs) }
-        if let txt = UTType(filenameExtension: "txt") { ts.append(txt) }
-        ts.append(.data)
-        return ts
-    }()
+    // Chỉ cho phép .json để tránh chọn nhầm định dạng
+    private let importerTypes: [UTType] = [.json]
 
     var body: some View {
         NavigationStack {
@@ -156,6 +148,14 @@ struct ContentView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Spacer()
+                    // NÚT CẬP NHẬT — đọc lại DB từ file
+                    Button {
+                        store.reloadFromDisk()
+                    } label: {
+                        Label("Cập nhật", systemImage: "arrow.clockwise").font(.footnote)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(selecting)
                 }
                 .padding(.top, 4)
             }
@@ -188,12 +188,21 @@ struct ContentView: View {
                 } header: {
                     VStack(alignment: .leading, spacing: 2) {
                         if index == 0 {
+                            // Header chính của "ĐÃ LƯU" kèm nút Cập nhật
                             HStack(spacing: 8) {
                                 savedStatusDot
                                 Text("ĐÃ LƯU")
                                     .textCase(.uppercase)
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
+                                Spacer()
+                                Button {
+                                    store.reloadFromDisk()
+                                } label: {
+                                    Label("Cập nhật", systemImage: "arrow.clockwise").font(.footnote)
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(selecting)
                             }
                             .padding(.top, 4)
                         }
