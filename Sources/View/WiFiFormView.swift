@@ -144,7 +144,7 @@ struct WiFiFormView: View {
         store.sortInPlace()
 
         if mode == .create {
-            NotificationCenter.default.post(name: Notification.Name("wifiDidAdd"), object: nil)
+            NotificationCenter.default.post(name: Notification.Name("wifiDidAdd"), object: nil, userInfo: ["ssid": item.ssid])
         }
         dismiss()
     }

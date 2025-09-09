@@ -10,7 +10,7 @@ struct WiFiDetailView: View {
 
     @State private var pwDraft: String = ""
 
-    // 🔥 Banner (chỉ dùng khi Lưu – YÊU CẦU 2)
+    // 🔔 Banner (chỉ dùng cho các hành vi trong view này)
     @State private var showBanner = false
     @State private var lastSuccess = false
     @State private var lastMessage: String? = nil
@@ -35,7 +35,7 @@ struct WiFiDetailView: View {
             ToolbarItem(placement: .topBarLeading) {
                 Button { dismiss() } label: {
                     HStack(spacing: 4) {
-                        // YÊU CẦU 8: chỉ icon chevron.left bold
+                        // Chỉ icon chevron.left bold (Yêu cầu 8)
                         Image(systemName: "chevron.left").fontWeight(.bold)
                         Text("Trở về")
                     }
@@ -46,30 +46,33 @@ struct WiFiDetailView: View {
         .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
             Button("Hủy", role: .cancel) {}
             Button("Xóa", role: .destructive) {
-                // Xóa và quay về màn chính, KHÔNG hiện banner ở đây (YÊU CẦU 4)
                 let ssid = item.ssid
                 store.delete(item.id)
-                // Gửi thông báo để ContentView hiển thị banner "THÀNH CÔNG! Đã xóa Wi-Fi: {Tên mạng}"
+                // Không hiển thị banner tại đây; gửi về ContentView để hiện
                 NotificationCenter.default.post(name: .wifiDeleted, object: nil, userInfo: ["ssid": ssid])
                 dismiss()
             }
         }
-        // 🔥 Banner overlay: đè lên trên cùng như ContentView (YÊU CẦU 6)
-        .overlay(alignment: .top) {
-            if showBanner {
-                BannerView(success: lastSuccess, count: 0, message: lastMessage)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .onTapGesture { withAnimation { showBanner = false } }
-                    .gesture(DragGesture(minimumDistance: 10).onEnded { v in
-                        if v.translation.height < 0 { withAnimation { showBanner = false } }
-                    })
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            withAnimation { showBanner = false }
+
+        // 🔔 Banner overlay — đặt giống ContentView (bên dưới status bar, đè lên nội dung)
+        .overlay {
+            GeometryReader { proxy in
+                if showBanner {
+                    BannerView(success: lastSuccess, count: 0, message: lastMessage)
+                        .padding(.top, proxy.safeAreaInsets.top + 6) // đẩy xuống dưới đồng hồ (fix ảnh 2)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .onTapGesture { withAnimation { showBanner = false } }
+                        .gesture(DragGesture(minimumDistance: 10).onEnded { v in
+                            if v.translation.height < 0 { withAnimation { showBanner = false } }
+                        })
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation { showBanner = false }
+                            }
                         }
-                    }
-                    .zIndex(999)
-                    .ignoresSafeArea(edges: .top)
+                        .zIndex(999)
+                }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -77,7 +80,7 @@ struct WiFiDetailView: View {
                 hideKeyboard()
                 if (item.password ?? "").isEmpty { item.security = .none }
                 store.upsert(item)
-                // YÊU CẦU 2: Banner khi (và chỉ khi) bấm nút Lưu
+                // Giữ banner khi bấm "Lưu thông tin" tại Detail (không đổi)
                 showBannerResult(success: true, message: "Đã lưu thông tin Wi-Fi")
             } label: {
                 Text("Lưu thông tin").fontWeight(.bold).frame(maxWidth: .infinity)
@@ -87,7 +90,6 @@ struct WiFiDetailView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
-        // Việt hóa chung (đảm bảo các control hệ thống hiện "Hủy" thay vì "Cancel" khi áp dụng)
         .environment(\.locale, Locale(identifier: "vi"))
     }
 
@@ -129,7 +131,6 @@ struct WiFiDetailView: View {
                         let pwd = item.password ?? ""
                         if !pwd.isEmpty {
                             UIPasteboard.general.string = pwd
-                            // Giữ nguyên hành vi sao chép, không đổi banner ở đây
                             showBannerResult(success: true, message: "Đã sao chép mật khẩu")
                         }
                     } label: {

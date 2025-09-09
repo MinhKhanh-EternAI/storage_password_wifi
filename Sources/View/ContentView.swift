@@ -17,14 +17,17 @@ struct ContentView: View {
     @State private var selectedIDs = Set<UUID>()
     @State private var syncing = false
 
-    // 🔥 Animation refresh
+    // 🔄 Animation refresh
     @State private var isRefreshing = false
 
-    // 🔥 Banner
+    // 🔔 Banner
     @State private var showBanner = false
     @State private var lastSuccess = false
     @State private var lastCount = 0
     @State private var lastMessage: String? = nil
+
+    // ⚠️ Xác nhận sao lưu (Yêu cầu mới)
+    @State private var showBackupConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -33,13 +36,16 @@ struct ContentView: View {
                 .listSectionSpacingCompat(4)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { topToolbar }
-                .searchable(text: $searchText,
-                            placement: .navigationBarDrawer(displayMode: .always),
-                            prompt: "Tìm kiếm mạng...")
+                .searchable(
+                    text: $searchText,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Tìm kiếm mạng..."
+                )
                 .onAppear {
-                    // ❌ YÊU CẦU 1: Bỏ tự động đồng bộ
+                    // ❌ Bỏ tự động đồng bộ (không gọi syncFromFirebase ở đây)
                     refreshSSID()
                 }
+                // Xác nhận xoá 1 mục trong danh sách
                 .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
                     confirmDelete != nil
                 }, set: { v in
@@ -53,9 +59,16 @@ struct ContentView: View {
                         }
                     }
                 }
+                // ⚠️ Cảnh báo trước khi Sao lưu (ghi đè)
+                .alert("Quá trình này có thể ghi đè dữ liệu cũ.\nTiếp tục?", isPresented: $showBackupConfirm) {
+                    Button("Hủy", role: .cancel) {}
+                    Button("Sao lưu") { uploadToFirebase() }
+                }
         }
-        // Việt hóa nút "Cancel" của thanh tìm kiếm
+        // Việt hoá các control hệ thống (Cancel → Hủy)
         .environment(\.locale, Locale(identifier: "vi"))
+
+        // Bottom bulk delete bar
         .safeAreaInset(edge: .bottom) {
             if selecting {
                 Button(role: .destructive) { deleteSelected() } label: {
@@ -70,12 +83,11 @@ struct ContentView: View {
                 .background(.ultraThinMaterial)
             }
         }
-        // 🔥 Overlay Banner (trên cùng)
+
+        // 🔔 Overlay Banner (đè lên trên cùng như ảnh 1)
         .overlay(alignment: .top) {
             if showBanner {
-                BannerView(success: lastSuccess,
-                           count: lastCount,
-                           message: lastMessage)
+                BannerView(success: lastSuccess, count: lastCount, message: lastMessage)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .onTapGesture { withAnimation { showBanner = false } }
                     .gesture(DragGesture(minimumDistance: 10).onEnded { value in
@@ -91,11 +103,19 @@ struct ContentView: View {
                     .zIndex(999)
             }
         }
-        // Nhận thông báo xóa từ WiFiDetailView (YÊU CẦU 4)
+
+        // Nhận banner “ĐÃ XÓA …” khi xoá trong WiFiDetailView
         .onReceive(NotificationCenter.default.publisher(for: .wifiDeleted)) { notif in
             let ssid = (notif.userInfo?["ssid"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let name = ssid.isEmpty ? "Wi-Fi" : ssid
             showBannerResult(success: true, message: "Đã xóa Wi-Fi: \(name)")
+        }
+
+        // Nhận banner “ĐÃ THÊM …” khi Lưu từ WiFiFormView (mode .create)
+        .onReceive(NotificationCenter.default.publisher(for: .wifiDidAdd)) { notif in
+            let ssid = (notif.userInfo?["ssid"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let name = ssid.isEmpty ? "Wi-Fi" : ssid
+            showBannerResult(success: true, message: "Đã thêm Wi-Fi: \(name)")
         }
     }
 
@@ -139,7 +159,7 @@ struct ContentView: View {
                 Text("MẠNG HIỆN TẠI").textCase(.uppercase).font(.footnote).foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    // YÊU CẦU 9: hiệu ứng “nảy” 0.1s
+                    // Nảy 0.1s (Yêu cầu 9)
                     withAnimation(.easeInOut(duration: 0.1)) { isRefreshing = true }
                     refreshSSID()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -149,7 +169,9 @@ struct ContentView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.clockwise")
                         Text("Làm mới")
-                    }.font(.footnote).scaleEffect(isRefreshing ? 0.8 : 1.0)
+                    }
+                    .font(.footnote)
+                    .scaleEffect(isRefreshing ? 0.8 : 1.0)
                 }
                 .buttonStyle(.borderless).disabled(selecting)
             }.padding(.top, 4)
@@ -176,7 +198,9 @@ struct ContentView: View {
                         if selecting {
                             Button { toggleSelect(network.id) } label: {
                                 row(for: network, selecting: true, selected: selectedIDs.contains(network.id))
-                            }.buttonStyle(.plain).swipeActions { }
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions { }
                         } else {
                             NavigationLink {
                                 WiFiDetailView(item: network).environmentObject(store)
@@ -242,21 +266,20 @@ struct ContentView: View {
                     Button { syncFromFirebase() } label: {
                         Label("Đồng bộ", systemImage: "arrow.triangle.2.circlepath")
                     }
-                    Button { uploadToFirebase() } label: {
+                    Button { showBackupConfirm = true } label: {
                         Label("Sao lưu", systemImage: "icloud.and.arrow.up")
                     }
-                } label: { Image(systemName: "ellipsis.circle") }.disabled(syncing)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .disabled(syncing)
             }
         }
     }
 
     // MARK: - Firebase actions
 
-    /// Đồng bộ theo YÊU CẦU 1 & 5:
-    /// - Fetch cloud
-    /// - Merge: local THẮNG theo BSSID; thêm các BSSID mới từ cloud
-    /// - Upload merged lên cloud
-    /// - Cập nhật local & banner
+    /// Đồng bộ: local THẮNG theo BSSID, thêm BSSID mới từ cloud, rồi đẩy kết quả hợp nhất lên cloud.
     private func syncFromFirebase() {
         checkInternet { online in
             guard online else {
@@ -290,7 +313,7 @@ struct ContentView: View {
         }
     }
 
-    /// Sao lưu toàn bộ local lên cloud (YÊU CẦU 5: kiểm tra internet, banner)
+    /// Sao lưu toàn bộ local lên cloud (có kiểm tra Internet)
     private func uploadToFirebase() {
         checkInternet { online in
             guard online else {
@@ -385,8 +408,10 @@ struct ContentView: View {
             let url = try store.exportSnapshot()
             let picker = UIDocumentPickerViewController(forExporting: [url])
             UIApplication.presentTop(picker)
-            // YÊU CẦU 3: Xóa banner thông báo xuất dữ liệu (không gọi showBannerResult ở đây)
-        } catch { showBannerResult(success: false, message: error.localizedDescription) }
+            // Yêu cầu 3: Không hiện banner khi xuất dữ liệu
+        } catch {
+            showBannerResult(success: false, message: error.localizedDescription)
+        }
     }
 
     private var isConnected: Bool { !(store.currentSSID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) }
@@ -410,16 +435,14 @@ private func mergeLocalAndCloud(local: [WiFiNetwork], cloud: [WiFiNetwork]) -> [
             localByBSSID[key] = item
         }
     }
-
     for c in cloud {
         if let key = normalizeBSSID(c.bssid) {
             if localByBSSID[key] == nil {
-                // BSSID chưa có ở local → thêm mới từ cloud
-                merged.append(c)
+                merged.append(c) // BSSID mới từ cloud
             }
             // Nếu trùng BSSID: local thắng → bỏ qua c
         } else {
-            // Cloud không có BSSID: tránh nhân bản vô nghĩa; chỉ thêm nếu chưa có id tương tự
+            // Cloud không có BSSID: chỉ thêm nếu chưa tồn tại cùng id
             if !merged.contains(where: { $0.id == c.id }) {
                 merged.append(c)
             }
@@ -479,7 +502,8 @@ private extension UIApplication {
 }
 private extension UIWindowScene { var keyWindow: UIWindow? { windows.first { $0.isKeyWindow } } }
 
-// Thông báo xóa để WiFiDetailView gửi, ContentView nhận (YÊU CẦU 4)
+// Thông báo dùng chung
 extension Notification.Name {
     static let wifiDeleted = Notification.Name("wifiDeleted")
+    static let wifiDidAdd = Notification.Name("wifiDidAdd")
 }
