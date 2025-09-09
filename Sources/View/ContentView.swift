@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
+import Network
 
 struct ContentView: View {
     @EnvironmentObject var store: WiFiStore
@@ -34,10 +35,10 @@ struct ContentView: View {
                 .toolbar { topToolbar }
                 .searchable(text: $searchText,
                             placement: .navigationBarDrawer(displayMode: .always),
-                            prompt: "Search")
+                            prompt: "Tìm kiếm mạng...")
                 .onAppear {
+                    // ❌ YÊU CẦU 1: Bỏ tự động đồng bộ
                     refreshSSID()
-                    syncFromFirebase() // 🔥 tự động đồng bộ khi vào app
                 }
                 .alert("Bạn có chắc chắn muốn xóa?", isPresented: Binding(get: {
                     confirmDelete != nil
@@ -53,6 +54,8 @@ struct ContentView: View {
                     }
                 }
         }
+        // Việt hóa nút "Cancel" của thanh tìm kiếm
+        .environment(\.locale, Locale(identifier: "vi"))
         .safeAreaInset(edge: .bottom) {
             if selecting {
                 Button(role: .destructive) { deleteSelected() } label: {
@@ -67,7 +70,7 @@ struct ContentView: View {
                 .background(.ultraThinMaterial)
             }
         }
-        // 🔥 Overlay Banner
+        // 🔥 Overlay Banner (trên cùng)
         .overlay(alignment: .top) {
             if showBanner {
                 BannerView(success: lastSuccess,
@@ -85,7 +88,14 @@ struct ContentView: View {
                             withAnimation { showBanner = false }
                         }
                     }
+                    .zIndex(999)
             }
+        }
+        // Nhận thông báo xóa từ WiFiDetailView (YÊU CẦU 4)
+        .onReceive(NotificationCenter.default.publisher(for: .wifiDeleted)) { notif in
+            let ssid = (notif.userInfo?["ssid"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let name = ssid.isEmpty ? "Wi-Fi" : ssid
+            showBannerResult(success: true, message: "Đã xóa Wi-Fi: \(name)")
         }
     }
 
@@ -129,10 +139,11 @@ struct ContentView: View {
                 Text("MẠNG HIỆN TẠI").textCase(.uppercase).font(.footnote).foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) { isRefreshing = true }
+                    // YÊU CẦU 9: hiệu ứng “nảy” 0.1s
+                    withAnimation(.easeInOut(duration: 0.1)) { isRefreshing = true }
                     refreshSSID()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { isRefreshing = false }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.easeInOut(duration: 0.1)) { isRefreshing = false }
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -241,32 +252,61 @@ struct ContentView: View {
 
     // MARK: - Firebase actions
 
+    /// Đồng bộ theo YÊU CẦU 1 & 5:
+    /// - Fetch cloud
+    /// - Merge: local THẮNG theo BSSID; thêm các BSSID mới từ cloud
+    /// - Upload merged lên cloud
+    /// - Cập nhật local & banner
     private func syncFromFirebase() {
-        syncing = true
-        firebase.fetchNetworks { result in
-            DispatchQueue.main.async {
-                syncing = false
-                switch result {
-                case .success(let items):
-                    store.items = items
-                    showBannerResult(success: true, message: "Đã đồng bộ: \(items.count) Wi-Fi", count: items.count)
-                case .failure(let err):
-                    showBannerResult(success: false, message: err.localizedDescription)
+        checkInternet { online in
+            guard online else {
+                showFailureNoInternet()
+                return
+            }
+            syncing = true
+            firebase.fetchNetworks { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let cloudItems):
+                        let merged = mergeLocalAndCloud(local: store.items, cloud: cloudItems)
+                        firebase.uploadNetworks(merged) { uploadResult in
+                            DispatchQueue.main.async {
+                                syncing = false
+                                switch uploadResult {
+                                case .success:
+                                    store.items = merged
+                                    showBannerResult(success: true, message: "Đã đồng bộ thành công", count: merged.count)
+                                case .failure(let err):
+                                    showBannerResult(success: false, message: err.localizedDescription)
+                                }
+                            }
+                        }
+                    case .failure(let err):
+                        syncing = false
+                        showBannerResult(success: false, message: err.localizedDescription)
+                    }
                 }
             }
         }
     }
 
+    /// Sao lưu toàn bộ local lên cloud (YÊU CẦU 5: kiểm tra internet, banner)
     private func uploadToFirebase() {
-        syncing = true
-        firebase.uploadNetworks(store.items) { result in
-            DispatchQueue.main.async {
-                syncing = false
-                switch result {
-                case .success:
-                    showBannerResult(success: true, message: "Đã sao lưu: \(store.items.count) Wi-Fi", count: store.items.count)
-                case .failure(let err):
-                    showBannerResult(success: false, message: err.localizedDescription)
+        checkInternet { online in
+            guard online else {
+                showFailureNoInternet()
+                return
+            }
+            syncing = true
+            firebase.uploadNetworks(store.items) { result in
+                DispatchQueue.main.async {
+                    syncing = false
+                    switch result {
+                    case .success:
+                        showBannerResult(success: true, message: "Đã sao lưu: \(store.items.count) Wi-Fi", count: store.items.count)
+                    case .failure(let err):
+                        showBannerResult(success: false, message: err.localizedDescription)
+                    }
                 }
             }
         }
@@ -345,7 +385,7 @@ struct ContentView: View {
             let url = try store.exportSnapshot()
             let picker = UIDocumentPickerViewController(forExporting: [url])
             UIApplication.presentTop(picker)
-            showBannerResult(success: true, message: "Đã xuất dữ liệu Wi-Fi")
+            // YÊU CẦU 3: Xóa banner thông báo xuất dữ liệu (không gọi showBannerResult ở đây)
         } catch { showBannerResult(success: false, message: error.localizedDescription) }
     }
 
@@ -353,6 +393,57 @@ struct ContentView: View {
     private var statusDot: some View { Circle().fill(isConnected ? .green : .red).frame(width: 8, height: 8) }
     private var savedStatusDot: some View { Circle().fill(hasSavedNetworks ? .green : .orange).frame(width: 8, height: 8) }
     private var hasSavedNetworks: Bool { !store.items.isEmpty }
+}
+
+// MARK: - Merge helpers (BSSID-based)
+
+private func normalizeBSSID(_ bssid: String?) -> String? {
+    guard let b = bssid?.trimmingCharacters(in: .whitespacesAndNewlines), !b.isEmpty else { return nil }
+    return b.lowercased()
+}
+
+private func mergeLocalAndCloud(local: [WiFiNetwork], cloud: [WiFiNetwork]) -> [WiFiNetwork] {
+    var merged = local
+    var localByBSSID: [String: WiFiNetwork] = [:]
+    for item in local {
+        if let key = normalizeBSSID(item.bssid) {
+            localByBSSID[key] = item
+        }
+    }
+
+    for c in cloud {
+        if let key = normalizeBSSID(c.bssid) {
+            if localByBSSID[key] == nil {
+                // BSSID chưa có ở local → thêm mới từ cloud
+                merged.append(c)
+            }
+            // Nếu trùng BSSID: local thắng → bỏ qua c
+        } else {
+            // Cloud không có BSSID: tránh nhân bản vô nghĩa; chỉ thêm nếu chưa có id tương tự
+            if !merged.contains(where: { $0.id == c.id }) {
+                merged.append(c)
+            }
+        }
+    }
+    return merged
+}
+
+// MARK: - Network check
+
+private func checkInternet(_ completion: @escaping (Bool) -> Void) {
+    let monitor = NWPathMonitor()
+    let queue = DispatchQueue(label: "net.mon")
+    monitor.pathUpdateHandler = { path in
+        completion(path.status == .satisfied)
+        monitor.cancel()
+    }
+    monitor.start(queue: queue)
+}
+
+private extension ContentView {
+    func showFailureNoInternet() {
+        showBannerResult(success: false, message: "Vui lòng kết nối mạng hoặc thử lại")
+    }
 }
 
 // MARK: - Helpers
@@ -387,3 +478,8 @@ private extension UIApplication {
     }
 }
 private extension UIWindowScene { var keyWindow: UIWindow? { windows.first { $0.isKeyWindow } } }
+
+// Thông báo xóa để WiFiDetailView gửi, ContentView nhận (YÊU CẦU 4)
+extension Notification.Name {
+    static let wifiDeleted = Notification.Name("wifiDeleted")
+}
