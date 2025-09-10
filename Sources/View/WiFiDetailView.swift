@@ -69,7 +69,24 @@ struct WiFiDetailView: View {
             }
             .environment(\.locale, Locale(identifier: "vi"))
 
-            // 🔔 Banner giống ContentView: phủ trên cả NavigationBar
+            // 🔔 Banner giống ContentView: phủ sát mép trên màn hình
+            if showBanner {
+                BannerView(success: lastSuccess, count: 0, message: lastMessage)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .onTapGesture { withAnimation { showBanner = false } }
+                    .gesture(DragGesture(minimumDistance: 10).onEnded { v in
+                        if v.translation.height < 0 { withAnimation { showBanner = false } }
+                    })
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation { showBanner = false }
+                        }
+                    }
+                    .zIndex(999)
+            }
+        }
+        .overlay(alignment: .top) {
+            // Đặt overlay ở top để luôn dính sát mép trên
             if showBanner {
                 BannerView(success: lastSuccess, count: 0, message: lastMessage)
                     .transition(.move(edge: .top).combined(with: .opacity))
