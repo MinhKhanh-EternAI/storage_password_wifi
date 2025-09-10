@@ -19,87 +19,76 @@ struct WiFiDetailView: View {
     @FocusState private var focusedField: Field?
 
     var body: some View {
-        ZStack {
-            // Nội dung chính
-            List {
-                infoSection
-                securitySection
-                qrSection
-            }
-            .onAppear { pwDraft = item.password ?? "" }
-            .scrollDismissesKeyboard(.immediately)
-            .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
-            .background(EnableSwipeBack())
-            .navigationTitle(item.ssid.isEmpty ? "Wi-Fi" : item.ssid)
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left").fontWeight(.bold)
-                            Text("Trở về")
-                        }
+        // Nội dung chính
+        List {
+            infoSection
+            securitySection
+            qrSection
+        }
+        .onAppear { pwDraft = item.password ?? "" }
+        .scrollDismissesKeyboard(.immediately)
+        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
+        .background(EnableSwipeBack())
+        .navigationTitle(item.ssid.isEmpty ? "Wi-Fi" : item.ssid)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { dismiss() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left").fontWeight(.bold)
+                        Text("Trở về")
                     }
                 }
-                topMenu
             }
-            .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
-                Button("Hủy", role: .cancel) {}
-                Button("Xóa", role: .destructive) {
-                    let ssid = item.ssid
-                    store.delete(item.id)
-                    NotificationCenter.default.post(name: .wifiDeleted, object: nil, userInfo: ["ssid": ssid])
-                    dismiss()
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                Button {
-                    hideKeyboard()
-                    if (item.password ?? "").isEmpty { item.security = .none }
-                    store.upsert(item)
-                    showBannerResult(success: true, message: "Đã lưu thông tin Wi-Fi")
-                } label: {
-                    Text("Lưu thông tin").fontWeight(.bold).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            }
-            .environment(\.locale, Locale(identifier: "vi"))
-
-            // 🔔 Banner giống ContentView: phủ sát mép trên màn hình
-            if showBanner {
-                BannerView(success: lastSuccess, count: 0, message: lastMessage)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .onTapGesture { withAnimation { showBanner = false } }
-                    .gesture(DragGesture(minimumDistance: 10).onEnded { v in
-                        if v.translation.height < 0 { withAnimation { showBanner = false } }
-                    })
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            withAnimation { showBanner = false }
-                        }
-                    }
-                    .zIndex(999)
+            topMenu
+        }
+        .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
+            Button("Hủy", role: .cancel) {}
+            Button("Xóa", role: .destructive) {
+                let ssid = item.ssid
+                store.delete(item.id)
+                NotificationCenter.default.post(name: .wifiDeleted, object: nil, userInfo: ["ssid": ssid])
+                dismiss()
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                hideKeyboard()
+                if (item.password ?? "").isEmpty { item.security = .none }
+                store.upsert(item)
+                showBannerResult(success: true, message: "Đã lưu thông tin Wi-Fi")
+            } label: {
+                Text("Lưu thông tin").fontWeight(.bold).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .environment(\.locale, Locale(identifier: "vi"))
+
+        // 🔔 Banner overlay: phủ sát mép trên màn hình (giống ContentView)
         .overlay(alignment: .top) {
-            // Đặt overlay ở top để luôn dính sát mép trên
             if showBanner {
-                BannerView(success: lastSuccess, count: 0, message: lastMessage)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .onTapGesture { withAnimation { showBanner = false } }
-                    .gesture(DragGesture(minimumDistance: 10).onEnded { v in
-                        if v.translation.height < 0 { withAnimation { showBanner = false } }
-                    })
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            withAnimation { showBanner = false }
+                GeometryReader { proxy in
+                    BannerView(success: lastSuccess, count: 0, message: lastMessage)
+                        .padding(.top, proxy.safeAreaInsets.top) // 👈 đẩy xuống ngay dưới tai thỏ
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .onTapGesture { withAnimation { showBanner = false } }
+                        .gesture(DragGesture(minimumDistance: 10).onEnded { v in
+                            if v.translation.height < 0 { withAnimation { showBanner = false } }
+                        })
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation { showBanner = false }
+                            }
                         }
-                    }
-                    .zIndex(999)
+                        .zIndex(999)
+                }
+                .ignoresSafeArea() // 👈 để GeometryReader bám vào toàn màn hình
+                .frame(height: 0) // không chiếm chỗ layout
             }
         }
     }
