@@ -10,7 +10,7 @@ struct WiFiDetailView: View {
 
     @State private var pwDraft: String = ""
 
-    // 🔔 Banner (chỉ dùng cho các hành vi trong view này)
+    // 🔔 Banner
     @State private var showBanner = false
     @State private var lastSuccess = false
     @State private var lastMessage: String? = nil
@@ -19,43 +19,57 @@ struct WiFiDetailView: View {
     @FocusState private var focusedField: Field?
 
     var body: some View {
-        List {
-            infoSection
-            securitySection
-            qrSection
-        }
-        .onAppear { pwDraft = item.password ?? "" }
-        .scrollDismissesKeyboard(.immediately)
-        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
-        .background(EnableSwipeBack())
-        .navigationTitle(item.ssid.isEmpty ? "Wi-Fi" : item.ssid)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { dismiss() } label: {
-                    HStack(spacing: 4) {
-                        // Chỉ icon chevron.left bold (Yêu cầu 8)
-                        Image(systemName: "chevron.left").fontWeight(.bold)
-                        Text("Trở về")
+        ZStack {
+            // Nội dung chính
+            List {
+                infoSection
+                securitySection
+                qrSection
+            }
+            .onAppear { pwDraft = item.password ?? "" }
+            .scrollDismissesKeyboard(.immediately)
+            .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
+            .background(EnableSwipeBack())
+            .navigationTitle(item.ssid.isEmpty ? "Wi-Fi" : item.ssid)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left").fontWeight(.bold)
+                            Text("Trở về")
+                        }
                     }
                 }
+                topMenu
             }
-            topMenu
-        }
-        .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
-            Button("Hủy", role: .cancel) {}
-            Button("Xóa", role: .destructive) {
-                let ssid = item.ssid
-                store.delete(item.id)
-                // Không hiển thị banner tại đây; gửi về ContentView để hiện
-                NotificationCenter.default.post(name: .wifiDeleted, object: nil, userInfo: ["ssid": ssid])
-                dismiss()
+            .alert("Bạn có chắc chắn muốn xóa?", isPresented: $showDeleteAlert) {
+                Button("Hủy", role: .cancel) {}
+                Button("Xóa", role: .destructive) {
+                    let ssid = item.ssid
+                    store.delete(item.id)
+                    NotificationCenter.default.post(name: .wifiDeleted, object: nil, userInfo: ["ssid": ssid])
+                    dismiss()
+                }
             }
-        }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    hideKeyboard()
+                    if (item.password ?? "").isEmpty { item.security = .none }
+                    store.upsert(item)
+                    showBannerResult(success: true, message: "Đã lưu thông tin Wi-Fi")
+                } label: {
+                    Text("Lưu thông tin").fontWeight(.bold).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+            .environment(\.locale, Locale(identifier: "vi"))
 
-        // 🔔 Banner overlay — đồng bộ style với ContentView
-        .overlay(alignment: .top) {
+            // 🔔 Banner giống ContentView: phủ trên cả NavigationBar
             if showBanner {
                 BannerView(success: lastSuccess, count: 0, message: lastMessage)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -71,23 +85,6 @@ struct WiFiDetailView: View {
                     .zIndex(999)
             }
         }
-
-        .safeAreaInset(edge: .bottom) {
-            Button {
-                hideKeyboard()
-                if (item.password ?? "").isEmpty { item.security = .none }
-                store.upsert(item)
-                // Giữ banner khi bấm "Lưu thông tin" tại Detail (không đổi)
-                showBannerResult(success: true, message: "Đã lưu thông tin Wi-Fi")
-            } label: {
-                Text("Lưu thông tin").fontWeight(.bold).frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
-        .environment(\.locale, Locale(identifier: "vi"))
     }
 
     // MARK: - Sections
