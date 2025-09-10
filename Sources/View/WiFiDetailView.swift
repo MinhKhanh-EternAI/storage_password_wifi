@@ -54,27 +54,24 @@ struct WiFiDetailView: View {
             }
         }
 
-        // 🔔 Banner overlay — đặt giống ContentView (bên dưới status bar, đè lên nội dung)
-        .overlay {
-            GeometryReader { proxy in
-                if showBanner {
-                    BannerView(success: lastSuccess, count: 0, message: lastMessage)
-                        .padding(.top, proxy.safeAreaInsets.top + 6) // đẩy xuống dưới đồng hồ (fix ảnh 2)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .onTapGesture { withAnimation { showBanner = false } }
-                        .gesture(DragGesture(minimumDistance: 10).onEnded { v in
-                            if v.translation.height < 0 { withAnimation { showBanner = false } }
-                        })
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation { showBanner = false }
-                            }
+        // 🔔 Banner overlay — đồng bộ style với ContentView
+        .overlay(alignment: .top) {
+            if showBanner {
+                BannerView(success: lastSuccess, count: 0, message: lastMessage)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .onTapGesture { withAnimation { showBanner = false } }
+                    .gesture(DragGesture(minimumDistance: 10).onEnded { v in
+                        if v.translation.height < 0 { withAnimation { showBanner = false } }
+                    })
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation { showBanner = false }
                         }
-                        .zIndex(999)
-                }
+                    }
+                    .zIndex(999)
             }
         }
+
         .safeAreaInset(edge: .bottom) {
             Button {
                 hideKeyboard()

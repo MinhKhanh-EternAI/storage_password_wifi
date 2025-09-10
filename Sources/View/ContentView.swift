@@ -60,7 +60,7 @@ struct ContentView: View {
                     }
                 }
                 // ⚠️ Cảnh báo trước khi Sao lưu (ghi đè)
-                .alert("Quá trình này có thể ghi đè dữ liệu cũ.\nTiếp tục?", isPresented: $showBackupConfirm) {
+                .alert("Quá trình này có thể ghi đè dữ liệu cũ. Tiếp tục?", isPresented: $showBackupConfirm) {
                     Button("Hủy", role: .cancel) {}
                     Button("Sao lưu") { uploadToFirebase() }
                 }
